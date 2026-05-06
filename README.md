@@ -1,38 +1,43 @@
 # My Workday
 
-My Workday is a local web application for tracking worked hours against a required work-hours target.
+My Workday is a local web application for tracking work hours against a required monthly work-hours target.
 
-The app is designed for a simple attendance workflow: define workdays and required hours, enter daily start and end times, and immediately see whether the monthly balance is positive, negative, or exactly on target.
+The project is designed for a simple attendance workflow: set your expected work schedule, enter daily start and end times, and instantly see whether your current monthly balance is positive, negative, or exactly on target.
 
 ## Purpose
 
-The project helps users answer three practical questions:
+The purpose of My Workday is to give users a clear and simple way to manage their personal work-hour balance without depending on an external attendance system.
 
-- How many hours have I worked?
-- How many hours was I required to work?
+It helps answer three practical questions:
+
+- How many hours have I worked so far?
+- How many hours was I expected to work?
 - Am I currently in surplus or deficit?
 
-It is useful for employees, freelancers, or anyone who needs a clear monthly work-hours ledger without connecting to an external attendance system.
+The app is useful for employees, freelancers, students, or anyone who wants to keep a private monthly ledger of worked hours.
 
-## Core Features
+## Main Features
 
-- Monthly attendance table.
-- Workday settings by weekday.
-- Default support for Sunday through Thursday workweeks.
-- Friday and Saturday can be shown as blank/non-working days.
-- Daily time entry using `HH:mm` format.
-- Date display using `dd/MM/yyyy` format.
-- Multiple entries per day.
-- Monthly required hours calculation.
-- Actual worked hours calculation.
-- Balance calculation as `+HH:mm` or `-HH:mm`.
-- Local persistence using `localStorage`.
+- Monthly work-hours dashboard.
+- Daily attendance table.
+- Manual time entry for start and end times.
+- Support for multiple entries on the same day.
+- Configurable workdays and required hours per weekday.
+- Default Israeli-style workweek: Sunday through Thursday.
+- Friday and Saturday can remain blank as non-working days.
+- Monthly required-hours calculation.
+- Actual worked-hours calculation.
+- Balance calculation shown as `+HH:mm`, `-HH:mm`, or zero.
+- Recent entries panel.
+- Delete existing entries.
 - CSV export.
 - Light and dark mode.
+- Local browser storage using `localStorage`.
+- Israel time zone support using `Asia/Jerusalem`.
 
-## Calculation Model
+## How It Works
 
-Each saved entry contains:
+Each work entry contains:
 
 ```text
 date
@@ -42,16 +47,16 @@ source
 optional note
 ```
 
-The app calculates worked time as:
+The app calculates worked time from the difference between the end time and the start time.
 
 ```text
-end time - start time = actual worked time
+worked time = end time - start time
 ```
 
-The balance is calculated as:
+The monthly balance is calculated by comparing the actual worked time to the required work time.
 
 ```text
-actual worked time - required work time = balance
+balance = actual worked hours - required work hours
 ```
 
 Examples:
@@ -74,11 +79,29 @@ Required: 09:00
 Balance: +00:22
 ```
 
+If an end time is earlier than the start time, the app treats the entry as passing midnight and continues the calculation into the next day.
+
 ## Active Workday Rule
 
-The app treats the active workday as starting at `08:00` Israel time.
+The app uses Israel time (`Asia/Jerusalem`) and treats the active workday as starting at `08:00`.
 
 Before `08:00`, the new calendar day is not counted yet in the required-hours balance. This prevents the app from showing an artificial deficit before the workday has actually started.
+
+## Default Work Schedule
+
+By default, the app is configured for:
+
+| Day | Required Hours |
+| --- | ---: |
+| Sunday | 9 |
+| Monday | 9 |
+| Tuesday | 9 |
+| Wednesday | 9 |
+| Thursday | 9 |
+| Friday | 0 |
+| Saturday | 0 |
+
+Users can change the active workdays and required hours directly from the settings panel.
 
 ## Tech Stack
 
@@ -86,9 +109,23 @@ Before `08:00`, the new calendar day is not counted yet in the required-hours ba
 - TypeScript
 - Vite
 - Tailwind CSS
+- Lucide React
 - LocalStorage
 
-## Local Development
+## Getting Started
+
+### Prerequisites
+
+Make sure Node.js and npm are installed on your machine.
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/OfirPeer07/my_workday.git
+cd my_workday
+```
 
 Install dependencies:
 
@@ -102,32 +139,57 @@ Start the development server:
 npm run dev
 ```
 
-Build for production:
+Build the project for production:
 
 ```bash
 npm run build
 ```
 
-Preview production build:
+Preview the production build:
 
 ```bash
 npm run preview
 ```
 
-## Storage
+## Available Scripts
 
-This MVP stores all data locally in the browser using `localStorage`.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Starts the Vite development server. |
+| `npm run build` | Builds the app for production. |
+| `npm run preview` | Previews the production build locally. |
 
-No backend, database, authentication, or external API is required.
+## Data Storage
 
-## Future Improvements
+This project stores all user data locally in the browser using `localStorage`.
 
-Potential next steps:
+There is currently no backend, database, authentication system, or external API integration. The data remains on the same browser and device unless manually exported.
+
+## CSV Export
+
+The app can export saved work entries to a CSV file.
+
+The exported file includes:
+
+```text
+date,startTime,endTime,netHours,note
+```
+
+## Project Status
+
+This is an MVP version focused on local work-hour tracking.
+
+Potential future improvements:
 
 - Cloud sync.
 - User authentication.
-- Supabase or PostgreSQL backend.
+- Database support with Supabase or PostgreSQL.
 - Google Calendar import.
-- Manual correction workflow for imported events.
 - Monthly report export.
-- Mobile card layout for small screens.
+- Better mobile layout.
+- Multi-user support.
+- Backup and restore options.
+
+## License
+
+No license has been specified yet.
