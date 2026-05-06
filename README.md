@@ -151,6 +151,26 @@ Preview the production build:
 npm run preview
 ```
 
+## Deploying to GitHub Pages
+
+This project is configured to deploy automatically to GitHub Pages with GitHub Actions.
+
+The production URL will be:
+
+```text
+https://ofirpeer07.github.io/my_workday/
+```
+
+To deploy:
+
+1. Push the project to the `main` branch.
+2. Open the GitHub repository.
+3. Go to `Settings` -> `Pages`.
+4. Set `Build and deployment` -> `Source` to `GitHub Actions`.
+5. Wait for the `Deploy to GitHub Pages` workflow to finish.
+
+The Vite base path is configured as `/my_workday/` because GitHub Pages serves this repository under that path.
+
 ## Available Scripts
 
 | Command | Description |
