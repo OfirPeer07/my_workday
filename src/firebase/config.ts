@@ -8,16 +8,26 @@ type FirebaseClients = {
   db: Firestore;
 };
 
+function readEnvValue(value: string | undefined): string {
+  return value?.trim() ?? "";
+}
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: readEnvValue(import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain: readEnvValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId: readEnvValue(import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  storageBucket: readEnvValue(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: readEnvValue(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId: readEnvValue(import.meta.env.VITE_FIREBASE_APP_ID),
 };
 
-export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean);
+export const isFirebaseConfigured =
+  firebaseConfig.apiKey.startsWith("AIza") &&
+  firebaseConfig.authDomain.endsWith(".firebaseapp.com") &&
+  Boolean(firebaseConfig.projectId) &&
+  Boolean(firebaseConfig.storageBucket) &&
+  /^\d+$/.test(firebaseConfig.messagingSenderId) &&
+  /^\d+:/.test(firebaseConfig.appId);
 
 let clients: FirebaseClients | null = null;
 
@@ -27,12 +37,16 @@ export function getFirebaseClients(): FirebaseClients | null {
   }
 
   if (!clients) {
-    const app = initializeApp(firebaseConfig);
-    clients = {
-      app,
-      auth: getAuth(app),
-      db: getFirestore(app),
-    };
+    try {
+      const app = initializeApp(firebaseConfig);
+      clients = {
+        app,
+        auth: getAuth(app),
+        db: getFirestore(app),
+      };
+    } catch {
+      return null;
+    }
   }
 
   return clients;
