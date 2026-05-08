@@ -43,6 +43,7 @@ import {
   logoutFromFirebase,
   saveCloudEntry,
   saveCloudSettings,
+  signInWithGoogle,
   subscribeToCloudEntries,
   subscribeToCloudSettings,
   uploadLocalDataToCloud,
@@ -269,6 +270,101 @@ function ThemeToggle({
   );
 }
 
+function GoogleAuthButton({
+  firebaseReady,
+  user,
+  authLoading,
+  syncStatus,
+  syncError,
+}: {
+  firebaseReady: boolean;
+  user: FirebaseUser | null;
+  authLoading: boolean;
+  syncStatus: string;
+  syncError: string | null;
+}) {
+  const [isBusy, setIsBusy] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  async function handleSignIn() {
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function handleSignOut() {
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await logoutFromFirebase();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Sign out failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  if (!firebaseReady) {
+    return (
+      <div className="google-auth-chip is-disabled" title="Firebase is not configured">
+        <Cloud size={16} aria-hidden="true" />
+        <span>Local</span>
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="google-auth-chip is-disabled">
+        <Cloud size={16} aria-hidden="true" />
+        <span>בודק...</span>
+      </div>
+    );
+  }
+
+  if (user) {
+    return (
+      <div
+        className="google-auth-chip is-connected"
+        title={syncError ?? syncStatus}
+      >
+        <Cloud size={16} aria-hidden="true" />
+        <span>{user.displayName ?? user.email ?? "Google"}</span>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={isBusy}
+          aria-label="התנתקות"
+          title="התנתקות"
+        >
+          <LogOut size={15} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="google-auth-chip"
+      onClick={handleSignIn}
+      disabled={isBusy}
+      title={authError ?? syncStatus}
+    >
+      <Cloud size={16} aria-hidden="true" />
+      <span>כניסה עם Google</span>
+    </button>
+  );
+}
+
 function Header({
   themeMode,
   onThemeChange,
@@ -276,6 +372,11 @@ function Header({
   maxMonth,
   onMonthChange,
   onExport,
+  firebaseReady,
+  firebaseUser,
+  authLoading,
+  syncStatus,
+  syncError,
 }: {
   themeMode: ThemeMode;
   onThemeChange: (themeMode: ThemeMode) => void;
@@ -283,6 +384,11 @@ function Header({
   maxMonth: string;
   onMonthChange: (month: string) => void;
   onExport: () => void;
+  firebaseReady: boolean;
+  firebaseUser: FirebaseUser | null;
+  authLoading: boolean;
+  syncStatus: string;
+  syncError: string | null;
 }) {
   const clock = useIsraelClock();
   const selectedYear = Number(selectedMonth.slice(0, 4));
@@ -308,6 +414,14 @@ function Header({
       </div>
 
       <div className="header-actions">
+        <GoogleAuthButton
+          firebaseReady={firebaseReady}
+          user={firebaseUser}
+          authLoading={authLoading}
+          syncStatus={syncStatus}
+          syncError={syncError}
+        />
+
         <div className="clock-chip" title="Asia/Jerusalem">
           <Timer size={17} aria-hidden="true" />
           <div>
@@ -1106,6 +1220,11 @@ function App() {
           maxMonth={activeMonth}
           onMonthChange={setSelectedMonth}
           onExport={exportCsv}
+          firebaseReady={isFirebaseConfigured}
+          firebaseUser={firebaseUser}
+          authLoading={authLoading}
+          syncStatus={syncStatus}
+          syncError={syncError}
         />
 
         <section className="kpi-strip">
@@ -1143,14 +1262,6 @@ function App() {
           />
 
           <aside className="side-stack">
-            <CloudSyncPanel
-              firebaseReady={isFirebaseConfigured}
-              user={firebaseUser}
-              authLoading={authLoading}
-              syncStatus={syncStatus}
-              syncError={syncError}
-              onUploadLocal={uploadCurrentLocalData}
-            />
             <SettingsPanel settings={settings} onChange={updateSettings} />
             <EntryList entries={entries} onDelete={deleteEntry} />
           </aside>
