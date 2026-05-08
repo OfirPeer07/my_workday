@@ -247,6 +247,16 @@ service cloud.firestore {
 }
 ```
 
+The same rules are also stored in [`firestore.rules`](./firestore.rules).
+
+To deploy Firestore rules with Firebase CLI:
+
+```bash
+npx firebase-tools login
+npx firebase-tools use my-workday-d24c0
+npx firebase-tools deploy --only firestore:rules
+```
+
 ## CSV Export
 
 The app can export saved work entries to a CSV file.
