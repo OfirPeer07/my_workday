@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@fontsource/assistant": "^5.2.9",
     "firebase": "^12.13.0",
     "lucide-react": "^0.468.0",
