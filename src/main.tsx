@@ -15,7 +15,6 @@ import {
   Sun,
   Timer,
   Trash2,
-  UploadCloud,
 } from "lucide-react";
 import "./styles.css";
 import {
@@ -37,7 +36,6 @@ import {
 import type { BalanceStatus, TimeEntry, UserSettings, Weekday } from "./types";
 import { isFirebaseConfigured } from "./firebase/config";
 import {
-  authenticateWithEmail,
   deleteCloudEntry,
   listenToAuthState,
   logoutFromFirebase,
@@ -46,8 +44,6 @@ import {
   signInWithGoogle,
   subscribeToCloudEntries,
   subscribeToCloudSettings,
-  uploadLocalDataToCloud,
-  type AuthMode,
 } from "./firebase/repository";
 import type { User as FirebaseUser } from "firebase/auth";
 
@@ -362,6 +358,64 @@ function GoogleAuthButton({
       <Cloud size={16} aria-hidden="true" />
       <span>כניסה עם Google</span>
     </button>
+  );
+}
+
+function LoginPage({
+  firebaseReady,
+  authLoading,
+  syncError,
+}: {
+  firebaseReady: boolean;
+  authLoading: boolean;
+  syncError: string | null;
+}) {
+  const [isBusy, setIsBusy] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  async function handleGoogleSignIn() {
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  const errorMessage = authError ?? syncError;
+
+  return (
+    <main className="login-shell">
+      <section className="login-card">
+        <div className="login-brand">
+          <span>Workday Ledger</span>
+          <h1>מעקב שעות מול תקן</h1>
+          <p>התחברות עם Gmail בלבד כדי לסנכרן רשומות בין מחשב לסמארטפון.</p>
+        </div>
+
+        <button
+          type="button"
+          className="gmail-login-button"
+          onClick={handleGoogleSignIn}
+          disabled={!firebaseReady || authLoading || isBusy}
+        >
+          <Cloud size={18} aria-hidden="true" />
+          <span>
+            {authLoading
+              ? "בודק חיבור..."
+              : firebaseReady
+                ? "כניסה עם Gmail"
+                : "Firebase לא מוגדר"}
+          </span>
+        </button>
+
+        {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
+      </section>
+    </main>
   );
 }
 
@@ -857,161 +911,6 @@ function EntryList({
   );
 }
 
-function CloudSyncPanel({
-  firebaseReady,
-  user,
-  authLoading,
-  syncStatus,
-  syncError,
-  onUploadLocal,
-}: {
-  firebaseReady: boolean;
-  user: FirebaseUser | null;
-  authLoading: boolean;
-  syncStatus: string;
-  syncError: string | null;
-  onUploadLocal: () => Promise<void>;
-}) {
-  const [mode, setMode] = React.useState<AuthMode>("sign-in");
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [isBusy, setIsBusy] = React.useState(false);
-  const [authError, setAuthError] = React.useState<string | null>(null);
-
-  async function submitAuth(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsBusy(true);
-    setAuthError(null);
-
-    try {
-      await authenticateWithEmail(mode, email.trim(), password);
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Authentication failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function uploadLocal() {
-    setIsBusy(true);
-    setAuthError(null);
-
-    try {
-      await onUploadLocal();
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Upload failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  if (!firebaseReady) {
-    return (
-      <section className="side-panel cloud-panel">
-        <div className="panel-heading">
-          <Cloud size={18} aria-hidden="true" />
-          <h2>Cloud Sync</h2>
-        </div>
-        <p className="sync-copy">
-          Add Firebase values to `.env.local` to enable sync between desktop and
-          phone.
-        </p>
-      </section>
-    );
-  }
-
-  if (authLoading) {
-    return (
-      <section className="side-panel cloud-panel">
-        <div className="panel-heading">
-          <Cloud size={18} aria-hidden="true" />
-          <h2>Cloud Sync</h2>
-        </div>
-        <p className="sync-copy">Checking Firebase session...</p>
-      </section>
-    );
-  }
-
-  if (user) {
-    return (
-      <section className="side-panel cloud-panel">
-        <div className="panel-heading">
-          <Cloud size={18} aria-hidden="true" />
-          <h2>Cloud Sync</h2>
-        </div>
-
-        <div className="sync-account">
-          <span>Signed in</span>
-          <strong>{user.email}</strong>
-        </div>
-
-        <p className="sync-copy">{syncStatus}</p>
-        {syncError ? <p className="sync-error">{syncError}</p> : null}
-
-        <div className="sync-actions">
-          <button type="button" onClick={uploadLocal} disabled={isBusy}>
-            <UploadCloud size={16} aria-hidden="true" />
-            Upload local data
-          </button>
-          <button type="button" onClick={logoutFromFirebase} disabled={isBusy}>
-            <LogOut size={16} aria-hidden="true" />
-            Sign out
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="side-panel cloud-panel">
-      <div className="panel-heading">
-        <Cloud size={18} aria-hidden="true" />
-        <h2>Cloud Sync</h2>
-      </div>
-
-      <form className="auth-form" onSubmit={submitAuth}>
-        <label>
-          Email
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-            minLength={6}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </label>
-
-        {authError ? <p className="sync-error">{authError}</p> : null}
-
-        <button type="submit" className="primary-action wide" disabled={isBusy}>
-          {mode === "sign-in" ? "Sign in" : "Create account"}
-        </button>
-      </form>
-
-      <button
-        type="button"
-        className="link-button"
-        onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
-      >
-        {mode === "sign-in"
-          ? "Create a new account"
-          : "I already have an account"}
-      </button>
-    </section>
-  );
-}
-
 function normalizeSettings(settings: UserSettings): UserSettings {
   return {
     workDays: settings.workDays,
@@ -1177,17 +1076,6 @@ function App() {
     }
   }
 
-  async function uploadCurrentLocalData() {
-    if (!firebaseUser) {
-      return;
-    }
-
-    setSyncStatus("Uploading local data to Firebase...");
-    setSyncError(null);
-    await uploadLocalDataToCloud(firebaseUser.uid, settings, entries);
-    setSyncStatus("Local data uploaded to Firebase.");
-  }
-
   function exportCsv() {
     const header = "date,startTime,endTime,netHours,note";
     const rows = entries.map((entry) =>
@@ -1208,6 +1096,16 @@ function App() {
     link.download = "work-hours.csv";
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (authLoading || !firebaseUser) {
+    return (
+      <LoginPage
+        firebaseReady={isFirebaseConfigured}
+        authLoading={authLoading}
+        syncError={syncError}
+      />
+    );
   }
 
   return (

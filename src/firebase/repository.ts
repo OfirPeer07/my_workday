@@ -1,8 +1,6 @@
 import {
-  createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type User,
@@ -19,8 +17,6 @@ import {
 import type { TimeEntry, UserSettings } from "../types";
 import { getFirebaseClients } from "./config";
 
-export type AuthMode = "sign-in" | "sign-up";
-
 function requireClients() {
   const clients = getFirebaseClients();
   if (!clients) {
@@ -34,19 +30,6 @@ export function listenToAuthState(
 ): () => void {
   const { auth } = requireClients();
   return onAuthStateChanged(auth, onChange);
-}
-
-export async function authenticateWithEmail(
-  mode: AuthMode,
-  email: string,
-  password: string,
-): Promise<void> {
-  const { auth } = requireClients();
-  if (mode === "sign-up") {
-    await createUserWithEmailAndPassword(auth, email, password);
-    return;
-  }
-  await signInWithEmailAndPassword(auth, email, password);
 }
 
 export async function signInWithGoogle(): Promise<void> {

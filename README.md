@@ -190,7 +190,6 @@ If Firebase is not configured, the app automatically falls back to local browser
 Firebase is used for:
 
 - Google authentication.
-- Email and password authentication fallback.
 - Firestore cloud storage.
 - Syncing `user_settings` and `time_entries` between devices.
 
@@ -201,10 +200,9 @@ In the Firebase Console:
 1. Create a Firebase project.
 2. Add a Web App.
 3. Enable `Authentication` -> `Sign-in method` -> `Google`.
-4. Optional: enable `Authentication` -> `Sign-in method` -> `Email/Password`.
-5. Under `Authentication` -> `Settings` -> `Authorized domains`, make sure `ofirpeer07.github.io` is allowed.
-6. Create a Firestore database.
-7. Add the Firebase config values to `.env.local`.
+4. Under `Authentication` -> `Settings` -> `Authorized domains`, make sure `ofirpeer07.github.io` is allowed.
+5. Create a Firestore database.
+6. Add the Firebase config values to `.env.local`.
 
 Create `.env.local` from `.env.example`:
 
