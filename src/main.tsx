@@ -7,12 +7,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import {
   CalendarDays,
+  Cloud,
   Download,
+  LogOut,
   Moon,
   Settings2,
   Sun,
   Timer,
   Trash2,
+  UploadCloud,
 } from "lucide-react";
 import "./styles.css";
 import {
@@ -32,6 +35,20 @@ import {
   saveTimeEntries,
 } from "./storage/timeEntriesRepository";
 import type { BalanceStatus, TimeEntry, UserSettings, Weekday } from "./types";
+import { isFirebaseConfigured } from "./firebase/config";
+import {
+  authenticateWithEmail,
+  deleteCloudEntry,
+  listenToAuthState,
+  logoutFromFirebase,
+  saveCloudEntry,
+  saveCloudSettings,
+  subscribeToCloudEntries,
+  subscribeToCloudSettings,
+  uploadLocalDataToCloud,
+  type AuthMode,
+} from "./firebase/repository";
+import type { User as FirebaseUser } from "firebase/auth";
 
 type ThemeMode = "light" | "dark";
 
@@ -726,6 +743,161 @@ function EntryList({
   );
 }
 
+function CloudSyncPanel({
+  firebaseReady,
+  user,
+  authLoading,
+  syncStatus,
+  syncError,
+  onUploadLocal,
+}: {
+  firebaseReady: boolean;
+  user: FirebaseUser | null;
+  authLoading: boolean;
+  syncStatus: string;
+  syncError: string | null;
+  onUploadLocal: () => Promise<void>;
+}) {
+  const [mode, setMode] = React.useState<AuthMode>("sign-in");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [isBusy, setIsBusy] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  async function submitAuth(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await authenticateWithEmail(mode, email.trim(), password);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Authentication failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function uploadLocal() {
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await onUploadLocal();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  if (!firebaseReady) {
+    return (
+      <section className="side-panel cloud-panel">
+        <div className="panel-heading">
+          <Cloud size={18} aria-hidden="true" />
+          <h2>Cloud Sync</h2>
+        </div>
+        <p className="sync-copy">
+          Add Firebase values to `.env.local` to enable sync between desktop and
+          phone.
+        </p>
+      </section>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <section className="side-panel cloud-panel">
+        <div className="panel-heading">
+          <Cloud size={18} aria-hidden="true" />
+          <h2>Cloud Sync</h2>
+        </div>
+        <p className="sync-copy">Checking Firebase session...</p>
+      </section>
+    );
+  }
+
+  if (user) {
+    return (
+      <section className="side-panel cloud-panel">
+        <div className="panel-heading">
+          <Cloud size={18} aria-hidden="true" />
+          <h2>Cloud Sync</h2>
+        </div>
+
+        <div className="sync-account">
+          <span>Signed in</span>
+          <strong>{user.email}</strong>
+        </div>
+
+        <p className="sync-copy">{syncStatus}</p>
+        {syncError ? <p className="sync-error">{syncError}</p> : null}
+
+        <div className="sync-actions">
+          <button type="button" onClick={uploadLocal} disabled={isBusy}>
+            <UploadCloud size={16} aria-hidden="true" />
+            Upload local data
+          </button>
+          <button type="button" onClick={logoutFromFirebase} disabled={isBusy}>
+            <LogOut size={16} aria-hidden="true" />
+            Sign out
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="side-panel cloud-panel">
+      <div className="panel-heading">
+        <Cloud size={18} aria-hidden="true" />
+        <h2>Cloud Sync</h2>
+      </div>
+
+      <form className="auth-form" onSubmit={submitAuth}>
+        <label>
+          Email
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+            minLength={6}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+        </label>
+
+        {authError ? <p className="sync-error">{authError}</p> : null}
+
+        <button type="submit" className="primary-action wide" disabled={isBusy}>
+          {mode === "sign-in" ? "Sign in" : "Create account"}
+        </button>
+      </form>
+
+      <button
+        type="button"
+        className="link-button"
+        onClick={() => setMode(mode === "sign-in" ? "sign-up" : "sign-in")}
+      >
+        {mode === "sign-in"
+          ? "Create a new account"
+          : "I already have an account"}
+      </button>
+    </section>
+  );
+}
+
 function normalizeSettings(settings: UserSettings): UserSettings {
   return {
     workDays: settings.workDays,
@@ -739,6 +911,10 @@ function App() {
   const activeWorkDate = useActiveWorkDate();
   const currentIsraelDate = getIsraelDate(new Date());
   const activeMonth = getMonthFromDate(activeWorkDate);
+  const [firebaseUser, setFirebaseUser] = React.useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = React.useState(isFirebaseConfigured);
+  const [syncStatus, setSyncStatus] = React.useState("Local only");
+  const [syncError, setSyncError] = React.useState<string | null>(null);
   const [settings, setSettings] = React.useState<UserSettings>(() =>
     normalizeSettings(loadSettings()),
   );
@@ -780,13 +956,122 @@ function App() {
     }
   }, [activeMonth, selectedMonth]);
 
+  React.useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setAuthLoading(false);
+      return;
+    }
+
+    return listenToAuthState((user) => {
+      setFirebaseUser(user);
+      setAuthLoading(false);
+      setSyncStatus(user ? "Connected to Firebase." : "Local only.");
+      setSyncError(null);
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!firebaseUser) {
+      return;
+    }
+
+    setSyncStatus("Syncing cloud data...");
+    let receivedFirstEntriesSnapshot = false;
+
+    const unsubscribeSettings = subscribeToCloudSettings(
+      firebaseUser.uid,
+      (cloudSettings) => {
+        if (cloudSettings) {
+          const normalizedSettings = normalizeSettings(cloudSettings);
+          setSettings(normalizedSettings);
+          saveSettings(normalizedSettings);
+        }
+        setSyncStatus("Cloud sync is active.");
+      },
+      (error) => {
+        setSyncError(error.message);
+        setSyncStatus("Cloud sync failed.");
+      },
+    );
+
+    const unsubscribeEntries = subscribeToCloudEntries(
+      firebaseUser.uid,
+      (cloudEntries) => {
+        if (!receivedFirstEntriesSnapshot) {
+          receivedFirstEntriesSnapshot = true;
+          const localEntries = loadTimeEntries();
+
+          if (cloudEntries.length === 0 && localEntries.length > 0) {
+            setSyncStatus("Cloud is empty. Upload local data to start sync.");
+            return;
+          }
+        }
+
+        setEntries(cloudEntries);
+        saveTimeEntries(cloudEntries);
+        setSyncStatus("Cloud sync is active.");
+      },
+      (error) => {
+        setSyncError(error.message);
+        setSyncStatus("Cloud sync failed.");
+      },
+    );
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeEntries();
+    };
+  }, [firebaseUser]);
+
+  function handleCloudError(error: unknown) {
+    setSyncError(error instanceof Error ? error.message : "Cloud sync failed.");
+    setSyncStatus("Saved locally. Cloud sync failed.");
+  }
+
+  function updateSettings(settingsUpdate: UserSettings) {
+    const normalizedSettings = normalizeSettings(settingsUpdate);
+    setSettings(normalizedSettings);
+
+    if (firebaseUser) {
+      setSyncStatus("Saving settings to cloud...");
+      saveCloudSettings(firebaseUser.uid, normalizedSettings)
+        .then(() => setSyncStatus("Cloud sync is active."))
+        .catch(handleCloudError);
+    }
+  }
+
   function addEntry(entry: TimeEntry) {
     setEntries((current) => [entry, ...current]);
     setSelectedMonth(getMonthFromDate(entry.date));
+
+    if (firebaseUser) {
+      setSyncStatus("Saving entry to cloud...");
+      saveCloudEntry(firebaseUser.uid, entry)
+        .then(() => setSyncStatus("Cloud sync is active."))
+        .catch(handleCloudError);
+    }
   }
 
   function deleteEntry(id: string) {
     setEntries((current) => current.filter((entry) => entry.id !== id));
+
+    if (firebaseUser) {
+      setSyncStatus("Deleting entry from cloud...");
+      deleteCloudEntry(firebaseUser.uid, id)
+        .then(() => setSyncStatus("Cloud sync is active."))
+        .catch(handleCloudError);
+    }
+  }
+
+  async function uploadCurrentLocalData() {
+    if (!firebaseUser) {
+      return;
+    }
+
+    setSyncStatus("Uploading local data to Firebase...");
+    setSyncError(null);
+    await uploadLocalDataToCloud(firebaseUser.uid, settings, entries);
+    setSyncStatus("Local data uploaded to Firebase.");
   }
 
   function exportCsv() {
@@ -858,7 +1143,15 @@ function App() {
           />
 
           <aside className="side-stack">
-            <SettingsPanel settings={settings} onChange={setSettings} />
+            <CloudSyncPanel
+              firebaseReady={isFirebaseConfigured}
+              user={firebaseUser}
+              authLoading={authLoading}
+              syncStatus={syncStatus}
+              syncError={syncError}
+              onUploadLocal={uploadCurrentLocalData}
+            />
+            <SettingsPanel settings={settings} onChange={updateSettings} />
             <EntryList entries={entries} onDelete={deleteEntry} />
           </aside>
         </div>

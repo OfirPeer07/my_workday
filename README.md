@@ -181,9 +181,71 @@ The Vite base path is configured as `/my_workday/` because GitHub Pages serves t
 
 ## Data Storage
 
-This project stores all user data locally in the browser using `localStorage`.
+This project can store user data in Firebase so the same account can sync between desktop and phone.
 
-There is currently no backend, database, authentication system, or external API integration. The data remains on the same browser and device unless manually exported.
+If Firebase is not configured, the app automatically falls back to local browser storage using `localStorage`.
+
+## Firebase Sync
+
+Firebase is used for:
+
+- Email and password authentication.
+- Firestore cloud storage.
+- Syncing `user_settings` and `time_entries` between devices.
+
+### Firebase setup
+
+In the Firebase Console:
+
+1. Create a Firebase project.
+2. Add a Web App.
+3. Enable `Authentication` -> `Sign-in method` -> `Email/Password`.
+4. Create a Firestore database.
+5. Add the Firebase config values to `.env.local`.
+
+Create `.env.local` from `.env.example`:
+
+```bash
+cp .env.example .env.local
+```
+
+Then fill:
+
+```text
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
+
+For GitHub Pages deployment, add the same values as GitHub repository secrets:
+
+```text
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+```
+
+### Firestore rules
+
+Use user-scoped rules so each signed-in user can only access their own data:
+
+```text
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
 
 ## CSV Export
 
