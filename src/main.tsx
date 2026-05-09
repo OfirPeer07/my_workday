@@ -214,10 +214,28 @@ function useIsraelClock() {
 
 type WeatherState =
   | { status: "loading" }
-  | { status: "ready"; temperature: number; humidity: number; windSpeed: number; description: string }
+  | {
+      status: "ready";
+      temperature: number;
+      humidity: number;
+      windSpeed: number;
+      description: string;
+      locationName?: string;
+    }
   | { status: "unsupported" | "denied" | "error"; message: string };
 
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY?.trim() ?? "";
+const israelFallbackWeatherCoords = {
+  latitude: 32.0853,
+  longitude: 34.7818,
+  label: "Tel Aviv",
+};
+
+type WeatherCoords = {
+  latitude: number;
+  longitude: number;
+  label?: string;
+};
 
 function describeWeatherCode(code: number): string {
   if (code === 0) return "Clear";
@@ -237,7 +255,7 @@ function normalizeOpenWeatherDescription(value: string | undefined): string {
 }
 
 async function fetchOpenWeather(
-  coords: GeolocationCoordinates,
+  coords: WeatherCoords,
   signal: AbortSignal,
 ): Promise<Extract<WeatherState, { status: "ready" }>> {
   const params = new URLSearchParams({
@@ -276,11 +294,12 @@ async function fetchOpenWeather(
     humidity: data.main.humidity ?? 0,
     windSpeed: Math.round((data.wind?.speed ?? 0) * 3.6),
     description: normalizeOpenWeatherDescription(data.weather?.[0]?.description),
+    locationName: coords.label,
   };
 }
 
 async function fetchOpenMeteo(
-  coords: GeolocationCoordinates,
+  coords: WeatherCoords,
   signal: AbortSignal,
 ): Promise<Extract<WeatherState, { status: "ready" }>> {
   const params = new URLSearchParams({
@@ -315,53 +334,97 @@ async function fetchOpenMeteo(
     humidity: current.relative_humidity_2m ?? 0,
     windSpeed: current.wind_speed_10m ?? 0,
     description: describeWeatherCode(current.weather_code ?? -1),
+    locationName: coords.label,
   };
+}
+
+async function resolveApproximateWeatherCoords(signal: AbortSignal): Promise<WeatherCoords> {
+  try {
+    const response = await fetch("https://ipapi.co/json/", { signal });
+    if (!response.ok) throw new Error("IP location request failed.");
+
+    const data = (await response.json()) as {
+      latitude?: number;
+      longitude?: number;
+      city?: string;
+      country_name?: string;
+    };
+
+    if (typeof data.latitude !== "number" || typeof data.longitude !== "number") {
+      throw new Error("IP location response is missing coordinates.");
+    }
+
+    return {
+      latitude: data.latitude,
+      longitude: data.longitude,
+      label: data.city || data.country_name || "Approximate location",
+    };
+  } catch (error) {
+    if (signal.aborted) throw error;
+    return israelFallbackWeatherCoords;
+  }
+}
+
+async function loadWeatherForCoords(
+  coords: WeatherCoords,
+  signal: AbortSignal,
+): Promise<Extract<WeatherState, { status: "ready" }>> {
+  if (weatherApiKey) {
+    try {
+      return await fetchOpenWeather(coords, signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      console.warn("OpenWeather failed, falling back to Open-Meteo.", error);
+    }
+  }
+
+  return fetchOpenMeteo(coords, signal);
 }
 
 function useCurrentWeather(): WeatherState {
   const [weather, setWeather] = React.useState<WeatherState>({ status: "loading" });
 
   React.useEffect(() => {
-    if (!navigator.geolocation) {
-      setWeather({
-        status: "unsupported",
-        message: "Location is not supported by this browser.",
-      });
-      return;
+    const controller = new AbortController();
+
+    async function loadFallbackWeather() {
+      try {
+        const coords = await resolveApproximateWeatherCoords(controller.signal);
+        setWeather(await loadWeatherForCoords(coords, controller.signal));
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setWeather({
+          status: "error",
+          message: "Weather data is not available right now.",
+        });
+      }
     }
 
-    const controller = new AbortController();
+    if (!navigator.geolocation) {
+      void loadFallbackWeather();
+      return () => controller.abort();
+    }
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
-          if (weatherApiKey) {
-            try {
-              setWeather(await fetchOpenWeather(coords, controller.signal));
-              return;
-            } catch (error) {
-              if (controller.signal.aborted) return;
-              console.warn("OpenWeather failed, falling back to Open-Meteo.", error);
-            }
-          }
-
-          setWeather(await fetchOpenMeteo(coords, controller.signal));
+          setWeather(
+            await loadWeatherForCoords(
+              {
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                label: "Current location",
+              },
+              controller.signal,
+            ),
+          );
         } catch (error) {
           if (controller.signal.aborted) return;
-          setWeather({
-            status: "error",
-            message: "Weather data is not available right now.",
-          });
+          void loadFallbackWeather();
         }
       },
-      (error) => {
-        setWeather({
-          status: error.code === error.PERMISSION_DENIED ? "denied" : "error",
-          message:
-            error.code === error.PERMISSION_DENIED
-              ? "Allow location access to show current weather."
-              : "Current location could not be detected.",
-        });
+      () => {
+        void loadFallbackWeather();
       },
       {
         enableHighAccuracy: false,
@@ -810,11 +873,12 @@ function EnglishLoginPage({
             <span>Weather · Current Location</span>
             {weather.status === "ready" ? (
               <>
-                <strong>{Math.round(weather.temperature)}°</strong>
-                <small>
-                  {weather.description} · Humidity {Math.round(weather.humidity)}% · Wind{" "}
-                  {Math.round(weather.windSpeed)} km/h
-                </small>
+              <strong>{Math.round(weather.temperature)}°</strong>
+              <small>
+                {weather.locationName ? `${weather.locationName} · ` : ""}
+                {weather.description} · Humidity {Math.round(weather.humidity)}% · Wind{" "}
+                {Math.round(weather.windSpeed)} km/h
+              </small>
               </>
             ) : (
               <>
