@@ -212,6 +212,103 @@ function useIsraelClock() {
   };
 }
 
+type WeatherState =
+  | { status: "loading" }
+  | { status: "ready"; temperature: number; humidity: number; windSpeed: number; description: string }
+  | { status: "unsupported" | "denied" | "error"; message: string };
+
+function describeWeatherCode(code: number): string {
+  if (code === 0) return "בהיר";
+  if ([1, 2].includes(code)) return "מעונן חלקית";
+  if (code === 3) return "מעונן";
+  if ([45, 48].includes(code)) return "ערפל";
+  if (code >= 51 && code <= 57) return "טפטוף";
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "גשם";
+  if (code >= 71 && code <= 77) return "שלג";
+  if (code >= 95 && code <= 99) return "סופה";
+  return "מזג אוויר";
+}
+
+function useCurrentWeather(): WeatherState {
+  const [weather, setWeather] = React.useState<WeatherState>({ status: "loading" });
+
+  React.useEffect(() => {
+    if (!navigator.geolocation) {
+      setWeather({
+        status: "unsupported",
+        message: "הדפדפן לא תומך בזיהוי מיקום.",
+      });
+      return;
+    }
+
+    const controller = new AbortController();
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const params = new URLSearchParams({
+            latitude: String(coords.latitude),
+            longitude: String(coords.longitude),
+            current: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
+            timezone: "auto",
+          });
+          const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+            signal: controller.signal,
+          });
+
+          if (!response.ok) throw new Error("Weather request failed.");
+
+          const data = (await response.json()) as {
+            current?: {
+              temperature_2m?: number;
+              relative_humidity_2m?: number;
+              weather_code?: number;
+              wind_speed_10m?: number;
+            };
+          };
+
+          const current = data.current;
+          if (!current || current.temperature_2m === undefined) {
+            throw new Error("Weather response is missing current data.");
+          }
+
+          setWeather({
+            status: "ready",
+            temperature: current.temperature_2m,
+            humidity: current.relative_humidity_2m ?? 0,
+            windSpeed: current.wind_speed_10m ?? 0,
+            description: describeWeatherCode(current.weather_code ?? -1),
+          });
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          setWeather({
+            status: "error",
+            message: "לא ניתן לטעון כרגע מזג אוויר.",
+          });
+        }
+      },
+      (error) => {
+        setWeather({
+          status: error.code === error.PERMISSION_DENIED ? "denied" : "error",
+          message:
+            error.code === error.PERMISSION_DENIED
+              ? "יש לאשר מיקום כדי להציג מזג אוויר נוכחי."
+              : "לא ניתן לזהות מיקום נוכחי.",
+        });
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 600_000,
+        timeout: 10_000,
+      },
+    );
+
+    return () => controller.abort();
+  }, []);
+
+  return weather;
+}
+
 function useActiveWorkDate() {
   const [activeWorkDate, setActiveWorkDate] = React.useState(() =>
     getActiveWorkDate(),
@@ -487,6 +584,103 @@ function LoginPage({
           {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
         </section>
       </div>
+    </main>
+  );
+}
+
+function CompactLoginPage({
+  firebaseReady,
+  authLoading,
+  syncError,
+}: {
+  firebaseReady: boolean;
+  authLoading: boolean;
+  syncError: string | null;
+}) {
+  const clock = useIsraelClock();
+  const weather = useCurrentWeather();
+  const [isBusy, setIsBusy] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  async function handleGoogleSignIn() {
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  const errorMessage = authError ?? syncError;
+
+  return (
+    <main className="login-shell login-shell-clean">
+      <div
+        className="login-crystal-bg"
+        style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
+        aria-hidden="true"
+      />
+      <CrystalSmokeCanvas />
+      <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
+      <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
+
+      <section className="clean-login-card" aria-label="כניסה עם Gmail">
+        <div className="clean-login-brand">
+          <span>Workday Ledger</span>
+          <h1>כניסה למעקב שעות</h1>
+          <p>התחברות עם Gmail בלבד לסנכרון הרשומות בין המחשב לסמארטפון.</p>
+        </div>
+
+        <div className="clean-login-clock" aria-label="שעון ישראל">
+          <span>שעון ישראל</span>
+          <strong>{clock.time}</strong>
+          <small>{clock.date}</small>
+        </div>
+
+        <div className={`clean-weather-card is-${weather.status}`}>
+          <span>מזג אוויר לפי מיקום נוכחי</span>
+          {weather.status === "ready" ? (
+            <>
+              <strong>{Math.round(weather.temperature)}°</strong>
+              <small>
+                {weather.description} · לחות {Math.round(weather.humidity)}% · רוח{" "}
+                {Math.round(weather.windSpeed)} קמ״ש
+              </small>
+            </>
+          ) : (
+            <>
+              <strong>{weather.status === "loading" ? "טוען..." : "לא זמין"}</strong>
+              <small>
+                {weather.status === "loading"
+                  ? "מתחבר ל-API לפי הרשאת המיקום בדפדפן."
+                  : weather.message}
+              </small>
+            </>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className="gmail-login-button"
+          onClick={handleGoogleSignIn}
+          disabled={!firebaseReady || authLoading || isBusy}
+        >
+          <Cloud size={18} aria-hidden="true" />
+          <span>
+            {authLoading
+              ? "בודק חיבור..."
+              : firebaseReady
+                ? "כניסה עם Gmail"
+                : "Firebase לא מוגדר"}
+          </span>
+        </button>
+
+        {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
+      </section>
     </main>
   );
 }
@@ -1172,7 +1366,7 @@ function App() {
 
   if (authLoading || !firebaseUser) {
     return (
-      <LoginPage
+      <CompactLoginPage
         firebaseReady={isFirebaseConfigured}
         authLoading={authLoading}
         syncError={syncError}

@@ -557,6 +557,144 @@ select:focus-visible {
   animation: syncTravel 2.6s ease-in-out infinite;
 }
 
+.login-shell-clean {
+  padding: 18px;
+}
+
+.login-shell-clean .login-crystal-bg {
+  filter: saturate(1.08) contrast(1.02) brightness(0.42);
+  opacity: 0.72;
+}
+
+.login-shell-clean .login-crystal-bg::after {
+  background:
+    radial-gradient(circle at 50% 48%, rgba(5, 5, 6, 0.18) 0 24%, rgba(5, 5, 6, 0.54) 54%, rgba(5, 5, 6, 0.92) 100%),
+    linear-gradient(90deg, rgba(5, 5, 6, 0.94), rgba(5, 5, 6, 0.34) 50%, rgba(5, 5, 6, 0.92));
+}
+
+.login-shell-clean .login-webgl-layer {
+  opacity: 0.42;
+}
+
+.login-shell-clean .login-smoke-layer {
+  opacity: 0.34;
+}
+
+.clean-login-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 440px);
+  gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.105), rgba(255, 255, 255, 0.035)),
+    rgba(16, 16, 18, 0.78);
+  box-shadow:
+    0 26px 80px rgba(0, 0, 0, 0.48),
+    0 0 90px rgba(188, 103, 255, 0.18);
+  padding: 28px;
+  text-align: center;
+  backdrop-filter: blur(22px);
+}
+
+.clean-login-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 50% 0%, rgba(206, 146, 255, 0.22), transparent 42%);
+}
+
+.clean-login-brand,
+.clean-login-clock,
+.clean-weather-card,
+.clean-login-card .gmail-login-button,
+.clean-login-card .login-error {
+  position: relative;
+  z-index: 1;
+}
+
+.clean-login-brand span,
+.clean-login-clock span,
+.clean-weather-card span {
+  display: block;
+  color: #bfcfff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.clean-login-brand h1 {
+  margin: 6px 0 8px;
+  color: #f7f7f8;
+  font-size: clamp(2rem, 7vw, 3.35rem);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.clean-login-brand p {
+  margin: 0;
+  color: rgba(247, 247, 248, 0.72);
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.clean-login-clock {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
+    rgba(255, 255, 255, 0.045);
+  padding: 18px 16px;
+}
+
+.clean-login-clock strong {
+  direction: ltr;
+  color: #ffffff;
+  font-size: clamp(2.8rem, 12vw, 4.35rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 0.95;
+  text-shadow:
+    0 0 18px rgba(255, 255, 255, 0.16),
+    0 0 34px rgba(174, 120, 255, 0.22);
+}
+
+.clean-login-clock small,
+.clean-weather-card small {
+  display: block;
+  color: rgba(247, 247, 248, 0.66);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.clean-weather-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(138, 180, 255, 0.2);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(138, 180, 255, 0.2), transparent 42%),
+    rgba(255, 255, 255, 0.06);
+  padding: 14px 16px;
+}
+
+.clean-weather-card strong {
+  color: #ffffff;
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
 @keyframes loginAtmosphere {
   from {
     transform: translate3d(-1.5%, -1%, 0) scale(1);
