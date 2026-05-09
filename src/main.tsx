@@ -203,7 +203,7 @@ function useIsraelClock() {
       minute: "2-digit",
       second: "2-digit",
     }).format(now),
-    date: new Intl.DateTimeFormat("he-IL", {
+    date: new Intl.DateTimeFormat("en-GB", {
       timeZone: israelTimeZone,
       weekday: "long",
       day: "2-digit",
@@ -218,15 +218,15 @@ type WeatherState =
   | { status: "unsupported" | "denied" | "error"; message: string };
 
 function describeWeatherCode(code: number): string {
-  if (code === 0) return "בהיר";
-  if ([1, 2].includes(code)) return "מעונן חלקית";
-  if (code === 3) return "מעונן";
-  if ([45, 48].includes(code)) return "ערפל";
-  if (code >= 51 && code <= 57) return "טפטוף";
-  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "גשם";
-  if (code >= 71 && code <= 77) return "שלג";
-  if (code >= 95 && code <= 99) return "סופה";
-  return "מזג אוויר";
+  if (code === 0) return "Clear";
+  if ([1, 2].includes(code)) return "Partly cloudy";
+  if (code === 3) return "Cloudy";
+  if ([45, 48].includes(code)) return "Fog";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Rain";
+  if (code >= 71 && code <= 77) return "Snow";
+  if (code >= 95 && code <= 99) return "Storm";
+  return "Weather";
 }
 
 function useCurrentWeather(): WeatherState {
@@ -236,7 +236,7 @@ function useCurrentWeather(): WeatherState {
     if (!navigator.geolocation) {
       setWeather({
         status: "unsupported",
-        message: "הדפדפן לא תומך בזיהוי מיקום.",
+        message: "Location is not supported by this browser.",
       });
       return;
     }
@@ -283,7 +283,7 @@ function useCurrentWeather(): WeatherState {
           if (controller.signal.aborted) return;
           setWeather({
             status: "error",
-            message: "לא ניתן לטעון כרגע מזג אוויר.",
+            message: "Weather data is not available right now.",
           });
         }
       },
@@ -292,8 +292,8 @@ function useCurrentWeather(): WeatherState {
           status: error.code === error.PERMISSION_DENIED ? "denied" : "error",
           message:
             error.code === error.PERMISSION_DENIED
-              ? "יש לאשר מיקום כדי להציג מזג אוויר נוכחי."
-              : "לא ניתן לזהות מיקום נוכחי.",
+              ? "Allow location access to show current weather."
+              : "Current location could not be detected.",
         });
       },
       {
@@ -680,6 +680,107 @@ function CompactLoginPage({
         </button>
 
         {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
+      </section>
+    </main>
+  );
+}
+
+function EnglishLoginPage({
+  firebaseReady,
+  authLoading,
+  syncError,
+}: {
+  firebaseReady: boolean;
+  authLoading: boolean;
+  syncError: string | null;
+}) {
+  const clock = useIsraelClock();
+  const weather = useCurrentWeather();
+  const [isBusy, setIsBusy] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  async function handleGoogleSignIn() {
+    setIsBusy(true);
+    setAuthError(null);
+
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  const errorMessage = authError ?? syncError;
+
+  return (
+    <main className="login-shell login-shell-clean" dir="ltr">
+      <div
+        className="login-crystal-bg"
+        style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
+        aria-hidden="true"
+      />
+      <CrystalSmokeCanvas />
+      <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
+      <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
+
+      <section className="clean-login-card liquid-login-card" aria-label="Gmail sign in">
+        <div className="clean-login-brand">
+          <span>Workday Ledger</span>
+          <h1>Work Hours Login</h1>
+          <p>Sign in with Gmail to sync work records across desktop and mobile.</p>
+        </div>
+
+        <div className="clean-login-stack" aria-label="Clock and weather">
+          <div className="clean-login-clock" aria-label="Israel clock">
+            <span>Clock · Israel Time</span>
+            <strong>{clock.time}</strong>
+            <small>{clock.date}</small>
+          </div>
+
+          <div className={`clean-weather-card is-${weather.status}`}>
+            <span>Weather · Current Location</span>
+            {weather.status === "ready" ? (
+              <>
+                <strong>{Math.round(weather.temperature)}°</strong>
+                <small>
+                  {weather.description} · Humidity {Math.round(weather.humidity)}% · Wind{" "}
+                  {Math.round(weather.windSpeed)} km/h
+                </small>
+              </>
+            ) : (
+              <>
+                <strong>{weather.status === "loading" ? "Loading..." : "Unavailable"}</strong>
+                <small>
+                  {weather.status === "loading"
+                    ? "Connecting to the weather API with browser location permission."
+                    : weather.message}
+                </small>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="clean-gmail-card" aria-label="Gmail authentication">
+          <button
+            type="button"
+            className="gmail-login-button"
+            onClick={handleGoogleSignIn}
+            disabled={!firebaseReady || authLoading || isBusy}
+          >
+            <Cloud size={18} aria-hidden="true" />
+            <span>
+              {authLoading
+                ? "Checking connection..."
+                : firebaseReady
+                  ? "Continue with Gmail"
+                  : "Firebase is not configured"}
+            </span>
+          </button>
+
+          {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
+        </div>
       </section>
     </main>
   );
@@ -1366,7 +1467,7 @@ function App() {
 
   if (authLoading || !firebaseUser) {
     return (
-      <CompactLoginPage
+      <EnglishLoginPage
         firebaseReady={isFirebaseConfigured}
         authLoading={authLoading}
         syncError={syncError}
