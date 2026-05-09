@@ -33,6 +33,7 @@ import {
   loadTimeEntries,
   saveTimeEntries,
 } from "./storage/timeEntriesRepository";
+import crystalBallSmokeUrl from "./assets/crystal_ball_purple_smoke.jpg";
 import type { BalanceStatus, TimeEntry, UserSettings, Weekday } from "./types";
 import { isFirebaseConfigured } from "./firebase/config";
 import {
@@ -391,6 +392,13 @@ function LoginPage({
 
   return (
     <main className="login-shell">
+      <div
+        className="login-crystal-bg"
+        style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
+        aria-hidden="true"
+      />
+      <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
+      <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
       <div className="login-grid" aria-hidden="true" />
       <div className="login-sweep" aria-hidden="true" />
       <div className="login-stage">
