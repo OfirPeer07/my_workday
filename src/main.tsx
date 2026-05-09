@@ -236,6 +236,88 @@ function normalizeOpenWeatherDescription(value: string | undefined): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+async function fetchOpenWeather(
+  coords: GeolocationCoordinates,
+  signal: AbortSignal,
+): Promise<Extract<WeatherState, { status: "ready" }>> {
+  const params = new URLSearchParams({
+    lat: String(coords.latitude),
+    lon: String(coords.longitude),
+    appid: weatherApiKey,
+    units: "metric",
+  });
+  const response = await fetch(
+    `https://api.openweathermap.org/data/2.5/weather?${params}`,
+    { signal },
+  );
+
+  if (!response.ok) throw new Error("OpenWeather request failed.");
+
+  const data = (await response.json()) as {
+    main?: {
+      temp?: number;
+      humidity?: number;
+    };
+    weather?: Array<{
+      description?: string;
+    }>;
+    wind?: {
+      speed?: number;
+    };
+  };
+
+  if (data.main?.temp === undefined) {
+    throw new Error("OpenWeather response is missing current data.");
+  }
+
+  return {
+    status: "ready",
+    temperature: data.main.temp,
+    humidity: data.main.humidity ?? 0,
+    windSpeed: Math.round((data.wind?.speed ?? 0) * 3.6),
+    description: normalizeOpenWeatherDescription(data.weather?.[0]?.description),
+  };
+}
+
+async function fetchOpenMeteo(
+  coords: GeolocationCoordinates,
+  signal: AbortSignal,
+): Promise<Extract<WeatherState, { status: "ready" }>> {
+  const params = new URLSearchParams({
+    latitude: String(coords.latitude),
+    longitude: String(coords.longitude),
+    current: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
+    timezone: "auto",
+  });
+  const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+    signal,
+  });
+
+  if (!response.ok) throw new Error("Open-Meteo request failed.");
+
+  const data = (await response.json()) as {
+    current?: {
+      temperature_2m?: number;
+      relative_humidity_2m?: number;
+      weather_code?: number;
+      wind_speed_10m?: number;
+    };
+  };
+
+  const current = data.current;
+  if (!current || current.temperature_2m === undefined) {
+    throw new Error("Open-Meteo response is missing current data.");
+  }
+
+  return {
+    status: "ready",
+    temperature: current.temperature_2m,
+    humidity: current.relative_humidity_2m ?? 0,
+    windSpeed: current.wind_speed_10m ?? 0,
+    description: describeWeatherCode(current.weather_code ?? -1),
+  };
+}
+
 function useCurrentWeather(): WeatherState {
   const [weather, setWeather] = React.useState<WeatherState>({ status: "loading" });
 
@@ -254,79 +336,16 @@ function useCurrentWeather(): WeatherState {
       async ({ coords }) => {
         try {
           if (weatherApiKey) {
-            const params = new URLSearchParams({
-              lat: String(coords.latitude),
-              lon: String(coords.longitude),
-              appid: weatherApiKey,
-              units: "metric",
-            });
-            const response = await fetch(
-              `https://api.openweathermap.org/data/2.5/weather?${params}`,
-              { signal: controller.signal },
-            );
-
-            if (!response.ok) throw new Error("OpenWeather request failed.");
-
-            const data = (await response.json()) as {
-              main?: {
-                temp?: number;
-                humidity?: number;
-              };
-              weather?: Array<{
-                description?: string;
-              }>;
-              wind?: {
-                speed?: number;
-              };
-            };
-
-            if (data.main?.temp === undefined) {
-              throw new Error("OpenWeather response is missing current data.");
+            try {
+              setWeather(await fetchOpenWeather(coords, controller.signal));
+              return;
+            } catch (error) {
+              if (controller.signal.aborted) return;
+              console.warn("OpenWeather failed, falling back to Open-Meteo.", error);
             }
-
-            setWeather({
-              status: "ready",
-              temperature: data.main.temp,
-              humidity: data.main.humidity ?? 0,
-              windSpeed: Math.round((data.wind?.speed ?? 0) * 3.6),
-              description: normalizeOpenWeatherDescription(data.weather?.[0]?.description),
-            });
-            return;
           }
 
-          const params = new URLSearchParams({
-            latitude: String(coords.latitude),
-            longitude: String(coords.longitude),
-            current: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m",
-            timezone: "auto",
-          });
-          const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
-            signal: controller.signal,
-          });
-
-          if (!response.ok) throw new Error("Open-Meteo request failed.");
-
-          const data = (await response.json()) as {
-            current?: {
-              temperature_2m?: number;
-              relative_humidity_2m?: number;
-              weather_code?: number;
-              wind_speed_10m?: number;
-            };
-          };
-
-          const current = data.current;
-          if (!current || current.temperature_2m === undefined) {
-            throw new Error("Open-Meteo response is missing current data.");
-          }
-
-          setWeather({
-            status: "ready",
-            temperature: current.temperature_2m,
-            humidity: current.relative_humidity_2m ?? 0,
-            windSpeed: current.wind_speed_10m ?? 0,
-            description: describeWeatherCode(current.weather_code ?? -1),
-          });
+          setWeather(await fetchOpenMeteo(coords, controller.signal));
         } catch (error) {
           if (controller.signal.aborted) return;
           setWeather({
