@@ -1038,16 +1038,14 @@ function MonthLedgerTable({
         <table className="ledger-table">
           <thead>
             <tr>
-              <th>יום</th>
-              <th>תאריך</th>
-              <th>רשומות</th>
-              <th>תקן</th>
-              <th>בפועל</th>
-              <th>יתרה</th>
-              <th>סטטוס</th>
-              <th>כניסה</th>
-              <th>יציאה</th>
-              <th>טיוטה</th>
+              <th>Day / Date</th>
+              <th>Records</th>
+              <th>Standard</th>
+              <th>Actual</th>
+              <th>Balance</th>
+              <th>Status</th>
+              <th>Start</th>
+              <th>End</th>
             </tr>
           </thead>
           <tbody>
@@ -1060,32 +1058,29 @@ function MonthLedgerTable({
               const isBlankDay =
                 !settings.workDays.includes(weekday) && dayEntries.length === 0;
               const draft = drafts[date] ?? { startTime: "09:00", endTime: "18:00" };
-              const draftHours = calculateEntryHours({
-                id: "draft-preview",
-                date,
-                startTime: draft.startTime,
-                endTime: draft.endTime,
-                source: "manual",
-              });
+
+              if (isBlankDay) {
+                return (
+                  <tr key={date} className="is-blank-day is-compact-blank">
+                    <td data-label="Day / Date" className="day-date-cell">
+                      <strong>{weekdayLabels[weekday]}</strong>
+                      <small>{formatDisplayDate(date)}</small>
+                    </td>
+                    <td data-label="Records" colSpan={7}>
+                      <span className="blank-chip">Blank</span>
+                    </td>
+                  </tr>
+                );
+              }
 
               return (
-                <tr
-                  key={date}
-                  className={[
-                    date === activeDate ? "is-today" : "",
-                    isBlankDay ? "is-blank-day" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <td data-label="Day">
+                <tr key={date} className={date === activeDate ? "is-today" : ""}>
+                  <td data-label="Day / Date" className="day-date-cell">
                     <strong>{weekdayLabels[weekday]}</strong>
+                    <small>{formatDisplayDate(date)}</small>
                   </td>
-                  <td data-label="Date">{formatDisplayDate(date)}</td>
                   <td data-label="Records">
-                    {isBlankDay ? (
-                      <span className="blank-chip">Blank</span>
-                    ) : dayEntries.length > 0 ? (
+                    {dayEntries.length > 0 ? (
                       <div className="entry-stack">
                         {dayEntries.map((entry) => (
                           <span className="entry-chip" key={entry.id}>
@@ -1107,65 +1102,41 @@ function MonthLedgerTable({
                       <span className="muted">אין</span>
                     )}
                   </td>
-                  <td data-label="Standard">{isBlankDay ? "" : summary.requiredHours}</td>
-                  <td data-label="Actual">{isBlankDay ? "" : formatDuration(summary.actualHours)}</td>
-                  <td
-                    data-label="Balance"
-                    className={isBlankDay ? "muted" : toneForStatus(summary.status)}
-                  >
-                    {isBlankDay ? "" : formatTimeBalance(summary.balanceHours)}
+                  <td data-label="Standard">{summary.requiredHours}</td>
+                  <td data-label="Actual">{formatDuration(summary.actualHours)}</td>
+                  <td data-label="Balance" className={toneForStatus(summary.status)}>
+                    {formatTimeBalance(summary.balanceHours)}
                   </td>
                   <td data-label="Status">
-                    {isBlankDay ? (
-                      <span className="status-pill is-blank">ללא תקן</span>
-                    ) : (
-                      <span className={`status-pill ${toneForStatus(summary.status)}`}>
-                        {summary.status === "extra"
-                          ? "פלוס"
-                          : summary.status === "missing"
-                            ? "מינוס"
-                            : "מאוזן"}
-                      </span>
-                    )}
+                    <span className={`status-pill ${toneForStatus(summary.status)}`}>
+                      {summary.status === "extra"
+                        ? "Plus"
+                        : summary.status === "missing"
+                          ? "Minus"
+                          : "Balanced"}
+                    </span>
                   </td>
                   <td data-label="Start">
-                    {isBlankDay ? (
-                      <span className="muted">Blank</span>
-                    ) : (
-                      <input
-                        className="table-time-input"
-                        aria-label="שעת כניסה"
-                        type="time"
-                        value={draft.startTime}
-                        onChange={(event) =>
-                          updateDraft(date, "startTime", event.target.value)
-                        }
-                      />
-                    )}
+                    <input
+                      className="table-time-input"
+                      aria-label="שעת כניסה"
+                      type="time"
+                      value={draft.startTime}
+                      onChange={(event) =>
+                        updateDraft(date, "startTime", event.target.value)
+                      }
+                    />
                   </td>
                   <td data-label="End">
-                    {isBlankDay ? (
-                      <span className="muted">Blank</span>
-                    ) : (
-                      <input
-                        className="table-time-input"
-                        aria-label="שעת יציאה"
-                        type="time"
-                        value={draft.endTime}
-                        onChange={(event) =>
-                          updateDraft(date, "endTime", event.target.value)
-                        }
-                      />
-                    )}
-                  </td>
-                  <td data-label="Draft">
-                    {isBlankDay ? (
-                      <span className="muted">Blank</span>
-                    ) : drafts[date] ? (
-                      <span className="draft-pill">{formatDuration(draftHours)}</span>
-                    ) : (
-                      <span className="muted">לא נערך</span>
-                    )}
+                    <input
+                      className="table-time-input"
+                      aria-label="שעת יציאה"
+                      type="time"
+                      value={draft.endTime}
+                      onChange={(event) =>
+                        updateDraft(date, "endTime", event.target.value)
+                      }
+                    />
                   </td>
                 </tr>
               );
@@ -1176,7 +1147,6 @@ function MonthLedgerTable({
     </section>
   );
 }
-
 function SettingsPanel({
   settings,
   onChange,

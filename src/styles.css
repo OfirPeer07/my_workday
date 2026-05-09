@@ -1207,7 +1207,7 @@ select:focus-visible {
 
 .ledger-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 820px;
   border-collapse: separate;
   border-spacing: 0;
   text-align: right;
@@ -1249,6 +1249,14 @@ select:focus-visible {
 
 .ledger-table tbody tr.is-blank-day td {
   color: var(--muted);
+}
+
+.day-date-cell small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .entry-stack {
@@ -1766,22 +1774,29 @@ select:focus-visible {
 
   .ledger-table td:nth-child(1),
   .ledger-table td:nth-child(2),
-  .ledger-table td:nth-child(3),
-  .ledger-table td:nth-child(8),
-  .ledger-table td:nth-child(9),
-  .ledger-table td:nth-child(10) {
+  .ledger-table td:nth-child(7),
+  .ledger-table td:nth-child(8) {
     grid-column: 1 / -1;
   }
 
-  .ledger-table td:nth-child(1),
-  .ledger-table td:nth-child(2) {
+  .ledger-table td:nth-child(1) {
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
 
-  .ledger-table td:nth-child(8),
-  .ledger-table td:nth-child(9) {
+  .ledger-table tr.is-compact-blank td {
+    grid-column: 1 / -1;
+  }
+
+  .ledger-table tr.is-compact-blank td:nth-child(2) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ledger-table td:nth-child(7),
+  .ledger-table td:nth-child(8) {
     background: color-mix(in srgb, var(--accent) 7%, var(--surface-muted));
   }
 
