@@ -370,6 +370,7 @@ function LoginPage({
   authLoading: boolean;
   syncError: string | null;
 }) {
+  const clock = useIsraelClock();
   const [isBusy, setIsBusy] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(null);
 
@@ -390,31 +391,92 @@ function LoginPage({
 
   return (
     <main className="login-shell">
-      <section className="login-card">
-        <div className="login-brand">
-          <span>Workday Ledger</span>
-          <h1>מעקב שעות מול תקן</h1>
-          <p>התחברות עם Gmail בלבד כדי לסנכרן רשומות בין מחשב לסמארטפון.</p>
-        </div>
+      <div className="login-grid" aria-hidden="true" />
+      <div className="login-sweep" aria-hidden="true" />
+      <div className="login-stage">
+        <section className="login-visual" aria-label="תצוגת מערכת שעות">
+          <div className="time-system-card">
+            <div className="system-card-top">
+              <span>Live Time System</span>
+              <strong>Asia/Jerusalem</strong>
+            </div>
+            <div className="clock-dial">
+              <span className="clock-hand clock-hand-hour" />
+              <span className="clock-hand clock-hand-minute" />
+              <span className="clock-hand clock-hand-second" />
+              <span className="clock-core" />
+            </div>
+            <div className="digital-time">
+              <strong>{clock.time}</strong>
+              <span>{clock.date}</span>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          className="gmail-login-button"
-          onClick={handleGoogleSignIn}
-          disabled={!firebaseReady || authLoading || isBusy}
-        >
-          <Cloud size={18} aria-hidden="true" />
-          <span>
-            {authLoading
-              ? "בודק חיבור..."
-              : firebaseReady
-                ? "כניסה עם Gmail"
-                : "Firebase לא מוגדר"}
-          </span>
-        </button>
+          <div className="ledger-preview-card">
+            <div className="preview-header">
+              <span>Monthly Ledger</span>
+              <strong>רשומות עבודה</strong>
+            </div>
+            {[
+              ["09:00", "18:00", "+00:00", "מאוזן"],
+              ["08:42", "18:04", "+00:22", "פלוס"],
+              ["09:18", "17:44", "-00:34", "מינוס"],
+            ].map(([start, end, balance, status]) => (
+              <div className="preview-row" key={`${start}-${end}`}>
+                <span>{start}</span>
+                <span>{end}</span>
+                <strong>{balance}</strong>
+                <em>{status}</em>
+              </div>
+            ))}
+          </div>
 
-        {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
-      </section>
+          <div className="sync-preview-card">
+            <span>Sync Engine</span>
+            <strong>Gmail {"->"} Firebase {"->"} Devices</strong>
+            <div className="sync-line">
+              <i />
+            </div>
+          </div>
+        </section>
+
+        <section className="login-card">
+          <div className="login-brand">
+            <span>Workday Ledger</span>
+            <h1>מעקב שעות מול תקן</h1>
+            <p>התחברות עם Gmail בלבד כדי לסנכרן רשומות, שעות ויתרות בין מחשב לסמארטפון.</p>
+          </div>
+
+          <div className="login-stats">
+            <div>
+              <span>תקן יומי</span>
+              <strong>09:00</strong>
+            </div>
+            <div>
+              <span>פורמט יתרה</span>
+              <strong>+/- HH:mm</strong>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="gmail-login-button"
+            onClick={handleGoogleSignIn}
+            disabled={!firebaseReady || authLoading || isBusy}
+          >
+            <Cloud size={18} aria-hidden="true" />
+            <span>
+              {authLoading
+                ? "בודק חיבור..."
+                : firebaseReady
+                  ? "כניסה עם Gmail"
+                  : "Firebase לא מוגדר"}
+            </span>
+          </button>
+
+          {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
+        </section>
+      </div>
     </main>
   );
 }
