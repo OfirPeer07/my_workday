@@ -1078,11 +1078,11 @@ function MonthLedgerTable({
                     .filter(Boolean)
                     .join(" ")}
                 >
-                  <td>
+                  <td data-label="Day">
                     <strong>{weekdayLabels[weekday]}</strong>
                   </td>
-                  <td>{formatDisplayDate(date)}</td>
-                  <td>
+                  <td data-label="Date">{formatDisplayDate(date)}</td>
+                  <td data-label="Records">
                     {isBlankDay ? (
                       <span className="blank-chip">Blank</span>
                     ) : dayEntries.length > 0 ? (
@@ -1107,12 +1107,15 @@ function MonthLedgerTable({
                       <span className="muted">אין</span>
                     )}
                   </td>
-                  <td>{isBlankDay ? "" : summary.requiredHours}</td>
-                  <td>{isBlankDay ? "" : formatDuration(summary.actualHours)}</td>
-                  <td className={isBlankDay ? "muted" : toneForStatus(summary.status)}>
+                  <td data-label="Standard">{isBlankDay ? "" : summary.requiredHours}</td>
+                  <td data-label="Actual">{isBlankDay ? "" : formatDuration(summary.actualHours)}</td>
+                  <td
+                    data-label="Balance"
+                    className={isBlankDay ? "muted" : toneForStatus(summary.status)}
+                  >
                     {isBlankDay ? "" : formatTimeBalance(summary.balanceHours)}
                   </td>
-                  <td>
+                  <td data-label="Status">
                     {isBlankDay ? (
                       <span className="status-pill is-blank">ללא תקן</span>
                     ) : (
@@ -1125,7 +1128,7 @@ function MonthLedgerTable({
                       </span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Start">
                     {isBlankDay ? (
                       <span className="muted">Blank</span>
                     ) : (
@@ -1140,7 +1143,7 @@ function MonthLedgerTable({
                       />
                     )}
                   </td>
-                  <td>
+                  <td data-label="End">
                     {isBlankDay ? (
                       <span className="muted">Blank</span>
                     ) : (
@@ -1155,7 +1158,7 @@ function MonthLedgerTable({
                       />
                     )}
                   </td>
-                  <td>
+                  <td data-label="Draft">
                     {isBlankDay ? (
                       <span className="muted">Blank</span>
                     ) : drafts[date] ? (
