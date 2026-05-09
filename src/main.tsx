@@ -22,6 +22,7 @@ import {
   calculateEntryHours,
   calculateMonthSummary,
 } from "./domain/calculations";
+import { CrystalSmokeCanvas } from "./components/CrystalSmokeCanvas";
 import {
   addDays,
   getWeekdayFromDate,
@@ -397,6 +398,7 @@ function LoginPage({
         style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
         aria-hidden="true"
       />
+      <CrystalSmokeCanvas />
       <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
       <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
       <div className="login-grid" aria-hidden="true" />

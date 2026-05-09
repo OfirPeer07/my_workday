@@ -144,6 +144,21 @@ select:focus-visible {
   filter: blur(24px);
 }
 
+.login-webgl-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.86;
+  mix-blend-mode: screen;
+}
+
+.login-webgl-layer canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .login-smoke-layer::before,
 .login-smoke-layer::after {
   content: "";
@@ -1469,11 +1484,16 @@ select:focus-visible {
   .login-crystal-bg,
   .login-smoke-layer::before,
   .login-smoke-layer::after,
+  .login-webgl-layer,
   .login-grid,
   .login-sweep,
   .clock-dial,
   .clock-hand,
   .sync-line i {
     animation: none;
+  }
+
+  .login-webgl-layer {
+    display: none;
   }
 }
