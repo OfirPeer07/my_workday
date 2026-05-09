@@ -217,6 +217,8 @@ type WeatherState =
   | { status: "ready"; temperature: number; humidity: number; windSpeed: number; description: string }
   | { status: "unsupported" | "denied" | "error"; message: string };
 
+const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY?.trim() ?? "";
+
 function describeWeatherCode(code: number): string {
   if (code === 0) return "Clear";
   if ([1, 2].includes(code)) return "Partly cloudy";
@@ -227,6 +229,11 @@ function describeWeatherCode(code: number): string {
   if (code >= 71 && code <= 77) return "Snow";
   if (code >= 95 && code <= 99) return "Storm";
   return "Weather";
+}
+
+function normalizeOpenWeatherDescription(value: string | undefined): string {
+  if (!value) return "Weather";
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function useCurrentWeather(): WeatherState {
@@ -246,6 +253,47 @@ function useCurrentWeather(): WeatherState {
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         try {
+          if (weatherApiKey) {
+            const params = new URLSearchParams({
+              lat: String(coords.latitude),
+              lon: String(coords.longitude),
+              appid: weatherApiKey,
+              units: "metric",
+            });
+            const response = await fetch(
+              `https://api.openweathermap.org/data/2.5/weather?${params}`,
+              { signal: controller.signal },
+            );
+
+            if (!response.ok) throw new Error("OpenWeather request failed.");
+
+            const data = (await response.json()) as {
+              main?: {
+                temp?: number;
+                humidity?: number;
+              };
+              weather?: Array<{
+                description?: string;
+              }>;
+              wind?: {
+                speed?: number;
+              };
+            };
+
+            if (data.main?.temp === undefined) {
+              throw new Error("OpenWeather response is missing current data.");
+            }
+
+            setWeather({
+              status: "ready",
+              temperature: data.main.temp,
+              humidity: data.main.humidity ?? 0,
+              windSpeed: Math.round((data.wind?.speed ?? 0) * 3.6),
+              description: normalizeOpenWeatherDescription(data.weather?.[0]?.description),
+            });
+            return;
+          }
+
           const params = new URLSearchParams({
             latitude: String(coords.latitude),
             longitude: String(coords.longitude),
@@ -256,7 +304,7 @@ function useCurrentWeather(): WeatherState {
             signal: controller.signal,
           });
 
-          if (!response.ok) throw new Error("Weather request failed.");
+          if (!response.ok) throw new Error("Open-Meteo request failed.");
 
           const data = (await response.json()) as {
             current?: {
@@ -269,7 +317,7 @@ function useCurrentWeather(): WeatherState {
 
           const current = data.current;
           if (!current || current.temperature_2m === undefined) {
-            throw new Error("Weather response is missing current data.");
+            throw new Error("Open-Meteo response is missing current data.");
           }
 
           setWeather({
