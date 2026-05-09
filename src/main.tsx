@@ -1390,6 +1390,28 @@ function normalizeSettings(settings: UserSettings): UserSettings {
   };
 }
 
+function sortEntries(entries: TimeEntry[]): TimeEntry[] {
+  return [...entries].sort((a, b) =>
+    `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`),
+  );
+}
+
+function mergeEntriesById(
+  cloudEntries: TimeEntry[],
+  localEntries: TimeEntry[],
+): TimeEntry[] {
+  const entriesById = new Map<string, TimeEntry>();
+
+  cloudEntries.forEach((entry) => entriesById.set(entry.id, entry));
+  localEntries.forEach((entry) => {
+    if (!entriesById.has(entry.id)) {
+      entriesById.set(entry.id, entry);
+    }
+  });
+
+  return sortEntries([...entriesById.values()]);
+}
+
 function App() {
   const { themeMode, setThemeMode } = useThemeMode();
   const activeWorkDate = useActiveWorkDate();
@@ -1484,9 +1506,23 @@ function App() {
         if (!receivedFirstEntriesSnapshot) {
           receivedFirstEntriesSnapshot = true;
           const localEntries = loadTimeEntries();
+          const mergedEntries = mergeEntriesById(cloudEntries, localEntries);
+          const cloudEntryIds = new Set(cloudEntries.map((entry) => entry.id));
+          const localOnlyEntries = mergedEntries.filter(
+            (entry) => !cloudEntryIds.has(entry.id),
+          );
 
-          if (cloudEntries.length === 0 && localEntries.length > 0) {
-            setSyncStatus("Cloud is empty. Upload local data to start sync.");
+          if (localOnlyEntries.length > 0) {
+            setEntries(mergedEntries);
+            saveTimeEntries(mergedEntries);
+            setSyncStatus("Uploading local records to cloud...");
+            Promise.all(
+              localOnlyEntries.map((entry) =>
+                saveCloudEntry(firebaseUser.uid, entry),
+              ),
+            )
+              .then(() => setSyncStatus("Cloud sync is active."))
+              .catch(handleCloudError);
             return;
           }
         }
