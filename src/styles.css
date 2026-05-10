@@ -1557,6 +1557,23 @@ select:focus-visible {
   color: var(--bad);
 }
 
+.sync-banner {
+  margin: 0 0 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-muted));
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.sync-banner.is-error {
+  border-color: color-mix(in srgb, var(--bad) 48%, var(--border));
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface-muted));
+  color: var(--bad);
+}
+
 .link-button {
   display: inline-flex;
   min-height: 40px;

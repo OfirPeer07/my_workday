@@ -46,6 +46,7 @@ import {
   signInWithGoogle,
   subscribeToCloudEntries,
   subscribeToCloudSettings,
+  uploadLocalDataToCloud,
 } from "./firebase/repository";
 import type { User as FirebaseUser } from "firebase/auth";
 
@@ -1412,6 +1413,24 @@ function mergeEntriesById(
   return sortEntries([...entriesById.values()]);
 }
 
+function SyncBanner({
+  status,
+  error,
+}: {
+  status: string;
+  error: string | null;
+}) {
+  if (!error && status === "Cloud sync is active.") {
+    return null;
+  }
+
+  return (
+    <div className={`sync-banner ${error ? "is-error" : ""}`}>
+      {error ? `Cloud sync error: ${error}` : status}
+    </div>
+  );
+}
+
 function App() {
   const { themeMode, setThemeMode } = useThemeMode();
   const activeWorkDate = useActiveWorkDate();
@@ -1483,6 +1502,18 @@ function App() {
 
     setSyncStatus("Syncing cloud data...");
     let receivedFirstEntriesSnapshot = false;
+    const localEntriesAtLogin = loadTimeEntries();
+
+    if (localEntriesAtLogin.length > 0) {
+      setSyncStatus("Uploading local records to cloud...");
+      uploadLocalDataToCloud(
+        firebaseUser.uid,
+        normalizeSettings(loadSettings()),
+        localEntriesAtLogin,
+      )
+        .then(() => setSyncStatus("Cloud sync is active."))
+        .catch(handleCloudError);
+    }
 
     const unsubscribeSettings = subscribeToCloudSettings(
       firebaseUser.uid,
@@ -1561,7 +1592,11 @@ function App() {
   }
 
   function addEntry(entry: TimeEntry) {
-    setEntries((current) => [entry, ...current]);
+    setEntries((current) => {
+      const nextEntries = sortEntries([entry, ...current]);
+      saveTimeEntries(nextEntries);
+      return nextEntries;
+    });
     setSelectedMonth(getMonthFromDate(entry.date));
 
     if (firebaseUser) {
@@ -1573,7 +1608,11 @@ function App() {
   }
 
   function deleteEntry(id: string) {
-    setEntries((current) => current.filter((entry) => entry.id !== id));
+    setEntries((current) => {
+      const nextEntries = current.filter((entry) => entry.id !== id);
+      saveTimeEntries(nextEntries);
+      return nextEntries;
+    });
 
     if (firebaseUser) {
       setSyncStatus("Deleting entry from cloud...");
@@ -1631,6 +1670,7 @@ function App() {
           syncStatus={syncStatus}
           syncError={syncError}
         />
+        <SyncBanner status={syncStatus} error={syncError} />
 
         <section className="kpi-strip">
           <BalanceHero
