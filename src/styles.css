@@ -381,6 +381,13 @@ select:focus-visible {
   line-height: 1.35;
 }
 
+.login-success {
+  margin: 14px 0 0;
+  color: #8cffc2;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .time-system-card,
 .ledger-preview-card,
 .sync-preview-card {
@@ -731,6 +738,35 @@ select:focus-visible {
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 16px 46px rgba(0, 0, 0, 0.22);
   padding: 12px;
+}
+
+.email-login-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.email-login-field input {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid rgba(223, 233, 255, 0.26);
+  border-radius: 12px;
+  background: rgba(12, 12, 16, 0.54);
+  color: #ffffff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  outline: none;
+  padding: 0 14px;
+}
+
+.email-login-field input:focus {
+  border-color: rgba(223, 233, 255, 0.82);
+  box-shadow: 0 0 0 3px rgba(159, 124, 255, 0.22);
 }
 
 .clean-gmail-card .gmail-login-button {

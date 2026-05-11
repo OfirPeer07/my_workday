@@ -32,7 +32,7 @@ The app is useful for employees, freelancers, students, or anyone who wants to k
 - Delete existing entries.
 - CSV export.
 - Light and dark mode.
-- Local browser storage using `localStorage`.
+- Supabase cloud storage with email sign-in.
 - Israel time zone support using `Asia/Jerusalem`.
 
 ## How It Works
@@ -181,83 +181,53 @@ The Vite base path is configured as `/my_workday/` because GitHub Pages serves t
 
 ## Data Storage
 
-This project can store user data in Firebase so the same account can sync between desktop and phone.
+The app stores settings and work-hour entries in Supabase. Work records are not stored in browser `localStorage`, so clearing browser data does not delete the source data.
 
-If Firebase is not configured, the app automatically falls back to local browser storage using `localStorage`.
-
-## Firebase Sync
-
-Firebase is used for:
-
-- Google authentication.
-- Firestore cloud storage.
-- Syncing `user_settings` and `time_entries` between devices.
-
-### Firebase setup
-
-In the Firebase Console:
-
-1. Create a Firebase project.
-2. Add a Web App.
-3. Enable `Authentication` -> `Sign-in method` -> `Google`.
-4. Under `Authentication` -> `Settings` -> `Authorized domains`, make sure `ofirpeer07.github.io` is allowed.
-5. Create a Firestore database.
-6. Add the Firebase config values to `.env.local`.
-
-Create `.env.local` from `.env.example`:
-
-```bash
-cp .env.example .env.local
-```
-
-Then fill:
+Create a `.env.local` file with:
 
 ```text
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_WEATHER_API_KEY=
 ```
 
-For GitHub Pages deployment, add the same values as GitHub repository secrets:
+Create the required Supabase tables from the SQL editor:
 
-```text
-VITE_FIREBASE_API_KEY
-VITE_FIREBASE_AUTH_DOMAIN
-VITE_FIREBASE_PROJECT_ID
-VITE_FIREBASE_STORAGE_BUCKET
-VITE_FIREBASE_MESSAGING_SENDER_ID
-VITE_FIREBASE_APP_ID
+```sql
+create table public.user_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  settings jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create table public.time_entries (
+  id text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  date text not null,
+  start_time text not null,
+  end_time text not null,
+  source text not null default 'manual',
+  note text,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_settings enable row level security;
+alter table public.time_entries enable row level security;
+
+create policy "Users can manage their own settings"
+on public.user_settings
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "Users can manage their own time entries"
+on public.time_entries
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
 ```
 
-### Firestore rules
-
-Use user-scoped rules so each signed-in user can only access their own data:
-
-```text
-rules_version = '2';
-
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-The same rules are also stored in [`firestore.rules`](./firestore.rules).
-
-To deploy Firestore rules with Firebase CLI:
-
-```bash
-npx firebase-tools login
-npx firebase-tools use my-workday-d24c0
-npx firebase-tools deploy --only firestore:rules
-```
-
+In Supabase Authentication, keep the built-in Email provider enabled. The app sends a magic sign-in link to the user's email address.
 ## CSV Export
 
 The app can export saved work entries to a CSV file.

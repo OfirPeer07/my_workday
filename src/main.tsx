@@ -9,7 +9,6 @@ import {
   CalendarDays,
   Cloud,
   Download,
-  LogOut,
   Moon,
   Settings2,
   Sun,
@@ -25,32 +24,30 @@ import {
 import { CrystalSmokeCanvas } from "./components/CrystalSmokeCanvas";
 import {
   addDays,
+  defaultSettings,
   getWeekdayFromDate,
   weekdayLabels,
   weekdays,
 } from "./domain/workSchedule";
-import { loadSettings, saveSettings } from "./storage/settingsRepository";
-import {
-  loadTimeEntries,
-  saveTimeEntries,
-} from "./storage/timeEntriesRepository";
-import crystalBallSmokeUrl from "./assets/crystal_ball_purple_smoke.jpg";
-import type { BalanceStatus, TimeEntry, UserSettings, Weekday } from "./types";
-import { isFirebaseConfigured } from "./firebase/config";
 import {
   deleteCloudEntry,
-  listenToAuthState,
-  logoutFromFirebase,
+  getCurrentSession,
+  loadCloudEntries,
+  loadCloudSettings,
   saveCloudEntry,
   saveCloudSettings,
-  signInWithGoogle,
-  subscribeToCloudEntries,
-  subscribeToCloudSettings,
-  uploadLocalDataToCloud,
-} from "./firebase/repository";
-import type { User as FirebaseUser } from "firebase/auth";
+  sendEmailSignInLink,
+  signOutFromSupabase,
+  subscribeToAuthState,
+} from "./supabase/repository";
+import { isSupabaseConfigured } from "./supabase/client";
+import crystalBallSmokeUrl from "./assets/crystal_ball_purple_smoke.jpg";
+import type { BalanceStatus, TimeEntry, UserSettings, Weekday } from "./types";
+import type { User } from "@supabase/supabase-js";
 
 type ThemeMode = "light" | "dark";
+
+const authUnavailableMessage = "Email sign-in is not configured yet.";
 
 const israelTimeZone = "Asia/Jerusalem";
 const monthLabels = [
@@ -457,17 +454,12 @@ function useActiveWorkDate() {
 }
 
 function useThemeMode() {
-  const [themeMode, setThemeMode] = React.useState<ThemeMode>(() => {
-    const savedTheme = window.localStorage.getItem("my-workday:theme");
-    if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
-  });
+  const [themeMode, setThemeMode] = React.useState<ThemeMode>(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
 
   React.useEffect(() => {
     document.documentElement.classList.toggle("dark", themeMode === "dark");
-    window.localStorage.setItem("my-workday:theme", themeMode);
   }, [themeMode]);
 
   return { themeMode, setThemeMode };
@@ -496,354 +488,60 @@ function ThemeToggle({
   );
 }
 
-function GoogleAuthButton({
-  firebaseReady,
+function CloudAccountButton({
   user,
-  authLoading,
-  syncStatus,
-  syncError,
+  onSignOut,
 }: {
-  firebaseReady: boolean;
-  user: FirebaseUser | null;
-  authLoading: boolean;
-  syncStatus: string;
-  syncError: string | null;
+  user: User;
+  onSignOut: () => void;
 }) {
-  const [isBusy, setIsBusy] = React.useState(false);
-  const [authError, setAuthError] = React.useState<string | null>(null);
-
-  async function handleSignIn() {
-    setIsBusy(true);
-    setAuthError(null);
-
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function handleSignOut() {
-    setIsBusy(true);
-    setAuthError(null);
-
-    try {
-      await logoutFromFirebase();
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Sign out failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  if (!firebaseReady) {
-    return (
-      <div className="google-auth-chip is-disabled" title="Firebase is not configured">
-        <Cloud size={16} aria-hidden="true" />
-        <span>Local</span>
-      </div>
-    );
-  }
-
-  if (authLoading) {
-    return (
-      <div className="google-auth-chip is-disabled">
-        <Cloud size={16} aria-hidden="true" />
-        <span>בודק...</span>
-      </div>
-    );
-  }
-
-  if (user) {
-    return (
-      <div
-        className="google-auth-chip is-connected"
-        title={syncError ?? syncStatus}
-      >
-        <Cloud size={16} aria-hidden="true" />
-        <span>{user.displayName ?? user.email ?? "Google"}</span>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          disabled={isBusy}
-          aria-label="התנתקות"
-          title="התנתקות"
-        >
-          <LogOut size={15} aria-hidden="true" />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      className="google-auth-chip"
-      onClick={handleSignIn}
-      disabled={isBusy}
-      title={authError ?? syncStatus}
-    >
+    <div className="google-auth-chip is-connected" title={user.email ?? "Signed in"}>
       <Cloud size={16} aria-hidden="true" />
-      <span>כניסה עם Google</span>
-    </button>
+      <span>{user.email ?? "Signed in"}</span>
+      <button
+        type="button"
+        onClick={onSignOut}
+        aria-label="Sign out"
+        title="Sign out"
+      >
+        <span>×</span>
+      </button>
+    </div>
   );
 }
 
-function LoginPage({
-  firebaseReady,
-  authLoading,
-  syncError,
-}: {
-  firebaseReady: boolean;
-  authLoading: boolean;
-  syncError: string | null;
-}) {
-  const clock = useIsraelClock();
-  const [isBusy, setIsBusy] = React.useState(false);
-  const [authError, setAuthError] = React.useState<string | null>(null);
-
-  async function handleGoogleSignIn() {
-    setIsBusy(true);
-    setAuthError(null);
-
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  const errorMessage = authError ?? syncError;
-
-  return (
-    <main className="login-shell">
-      <div
-        className="login-crystal-bg"
-        style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
-        aria-hidden="true"
-      />
-      <CrystalSmokeCanvas />
-      <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
-      <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
-      <div className="login-grid" aria-hidden="true" />
-      <div className="login-sweep" aria-hidden="true" />
-      <div className="login-stage">
-        <section className="login-visual" aria-label="תצוגת מערכת שעות">
-          <div className="time-system-card">
-            <div className="system-card-top">
-              <span>Live Time System</span>
-              <strong>Asia/Jerusalem</strong>
-            </div>
-            <div className="clock-dial">
-              <span className="clock-hand clock-hand-hour" />
-              <span className="clock-hand clock-hand-minute" />
-              <span className="clock-hand clock-hand-second" />
-              <span className="clock-core" />
-            </div>
-            <div className="digital-time">
-              <strong>{clock.time}</strong>
-              <span>{clock.date}</span>
-            </div>
-          </div>
-
-          <div className="ledger-preview-card">
-            <div className="preview-header">
-              <span>Monthly Ledger</span>
-              <strong>רשומות עבודה</strong>
-            </div>
-            {[
-              ["09:00", "18:00", "+00:00", "מאוזן"],
-              ["08:42", "18:04", "+00:22", "פלוס"],
-              ["09:18", "17:44", "-00:34", "מינוס"],
-            ].map(([start, end, balance, status]) => (
-              <div className="preview-row" key={`${start}-${end}`}>
-                <span>{start}</span>
-                <span>{end}</span>
-                <strong>{balance}</strong>
-                <em>{status}</em>
-              </div>
-            ))}
-          </div>
-
-          <div className="sync-preview-card">
-            <span>Sync Engine</span>
-            <strong>Gmail {"->"} Firebase {"->"} Devices</strong>
-            <div className="sync-line">
-              <i />
-            </div>
-          </div>
-        </section>
-
-        <section className="login-card">
-          <div className="login-brand">
-            <span>Workday Ledger</span>
-            <h1>מעקב שעות מול תקן</h1>
-            <p>התחברות עם Gmail בלבד כדי לסנכרן רשומות, שעות ויתרות בין מחשב לסמארטפון.</p>
-          </div>
-
-          <div className="login-stats">
-            <div>
-              <span>תקן יומי</span>
-              <strong>09:00</strong>
-            </div>
-            <div>
-              <span>פורמט יתרה</span>
-              <strong>+/- HH:mm</strong>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="gmail-login-button"
-            onClick={handleGoogleSignIn}
-            disabled={!firebaseReady || authLoading || isBusy}
-          >
-            <Cloud size={18} aria-hidden="true" />
-            <span>
-              {authLoading
-                ? "בודק חיבור..."
-                : firebaseReady
-                  ? "כניסה עם Gmail"
-                  : "Firebase לא מוגדר"}
-            </span>
-          </button>
-
-          {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function CompactLoginPage({
-  firebaseReady,
-  authLoading,
-  syncError,
-}: {
-  firebaseReady: boolean;
-  authLoading: boolean;
-  syncError: string | null;
-}) {
+function EnglishLoginPage() {
   const clock = useIsraelClock();
   const weather = useCurrentWeather();
-  const [isBusy, setIsBusy] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(null);
+  const [email, setEmail] = React.useState("");
+  const [isSending, setIsSending] = React.useState(false);
+  const [sentMessage, setSentMessage] = React.useState<string | null>(null);
 
-  async function handleGoogleSignIn() {
-    setIsBusy(true);
+  async function handleEmailSignIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setAuthError(null);
+    setSentMessage(null);
+
+    if (!isSupabaseConfigured) {
+      setAuthError(authUnavailableMessage);
+      return;
+    }
+
+    setIsSending(true);
 
     try {
-      await signInWithGoogle();
+      await sendEmailSignInLink(email);
+      setSentMessage("Check your email for the sign-in link.");
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+      setAuthError(error instanceof Error ? error.message : "Email sign-in failed.");
     } finally {
-      setIsBusy(false);
+      setIsSending(false);
     }
   }
 
-  const errorMessage = authError ?? syncError;
-
-  return (
-    <main className="login-shell login-shell-clean">
-      <div
-        className="login-crystal-bg"
-        style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
-        aria-hidden="true"
-      />
-      <CrystalSmokeCanvas />
-      <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
-      <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
-
-      <section className="clean-login-card" aria-label="כניסה עם Gmail">
-        <div className="clean-login-brand">
-          <span>Workday Ledger</span>
-          <h1>כניסה למעקב שעות</h1>
-          <p>התחברות עם Gmail בלבד לסנכרון הרשומות בין המחשב לסמארטפון.</p>
-        </div>
-
-        <div className="clean-login-clock" aria-label="שעון ישראל">
-          <span>שעון ישראל</span>
-          <strong>{clock.time}</strong>
-          <small>{clock.date}</small>
-        </div>
-
-        <div className={`clean-weather-card is-${weather.status}`}>
-          <span>מזג אוויר לפי מיקום נוכחי</span>
-          {weather.status === "ready" ? (
-            <>
-              <strong>{Math.round(weather.temperature)}°</strong>
-              <small>
-                {weather.description} · לחות {Math.round(weather.humidity)}% · רוח{" "}
-                {Math.round(weather.windSpeed)} קמ״ש
-              </small>
-            </>
-          ) : (
-            <>
-              <strong>{weather.status === "loading" ? "טוען..." : "לא זמין"}</strong>
-              <small>
-                {weather.status === "loading"
-                  ? "מתחבר ל-API לפי הרשאת המיקום בדפדפן."
-                  : weather.message}
-              </small>
-            </>
-          )}
-        </div>
-
-        <button
-          type="button"
-          className="gmail-login-button"
-          onClick={handleGoogleSignIn}
-          disabled={!firebaseReady || authLoading || isBusy}
-        >
-          <Cloud size={18} aria-hidden="true" />
-          <span>
-            {authLoading
-              ? "בודק חיבור..."
-              : firebaseReady
-                ? "כניסה עם Gmail"
-                : "Firebase לא מוגדר"}
-          </span>
-        </button>
-
-        {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
-      </section>
-    </main>
-  );
-}
-
-function EnglishLoginPage({
-  firebaseReady,
-  authLoading,
-  syncError,
-}: {
-  firebaseReady: boolean;
-  authLoading: boolean;
-  syncError: string | null;
-}) {
-  const clock = useIsraelClock();
-  const weather = useCurrentWeather();
-  const [isBusy, setIsBusy] = React.useState(false);
-  const [authError, setAuthError] = React.useState<string | null>(null);
-
-  async function handleGoogleSignIn() {
-    setIsBusy(true);
-    setAuthError(null);
-
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  const errorMessage = authError ?? syncError;
+  const errorMessage = authError;
 
   return (
     <main className="login-shell login-shell-clean" dir="ltr">
@@ -856,11 +554,11 @@ function EnglishLoginPage({
       <div className="login-smoke-layer login-smoke-layer-one" aria-hidden="true" />
       <div className="login-smoke-layer login-smoke-layer-two" aria-hidden="true" />
 
-      <section className="clean-login-card liquid-login-card" aria-label="Gmail sign in">
+      <section className="clean-login-card liquid-login-card" aria-label="Email sign in">
         <div className="clean-login-brand">
           <span>Workday Ledger</span>
           <h1>Work Hours Login</h1>
-          <p>Sign in with Gmail to sync work records across desktop and mobile.</p>
+          <p>Sign in with email to store work records securely in Supabase.</p>
         </div>
 
         <div className="clean-login-stack" aria-label="Clock and weather">
@@ -894,25 +592,34 @@ function EnglishLoginPage({
           </div>
         </div>
 
-        <div className="clean-gmail-card" aria-label="Gmail authentication">
+        <form
+          className="clean-gmail-card"
+          aria-label="Email authentication"
+          onSubmit={handleEmailSignIn}
+        >
+          <label className="email-login-field">
+            <span>Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              required
+            />
+          </label>
+
           <button
-            type="button"
+            type="submit"
             className="gmail-login-button"
-            onClick={handleGoogleSignIn}
-            disabled={!firebaseReady || authLoading || isBusy}
+            disabled={isSending}
           >
             <Cloud size={18} aria-hidden="true" />
-            <span>
-              {authLoading
-                ? "Checking connection..."
-                : firebaseReady
-                  ? "Continue with Gmail"
-                  : "Firebase is not configured"}
-            </span>
+            <span>{isSending ? "Sending link..." : "Send sign-in link"}</span>
           </button>
 
+          {sentMessage ? <p className="login-success">{sentMessage}</p> : null}
           {errorMessage ? <p className="login-error">{errorMessage}</p> : null}
-        </div>
+        </form>
       </section>
     </main>
   );
@@ -925,11 +632,8 @@ function Header({
   maxMonth,
   onMonthChange,
   onExport,
-  firebaseReady,
-  firebaseUser,
-  authLoading,
-  syncStatus,
-  syncError,
+  user,
+  onSignOut,
 }: {
   themeMode: ThemeMode;
   onThemeChange: (themeMode: ThemeMode) => void;
@@ -937,11 +641,8 @@ function Header({
   maxMonth: string;
   onMonthChange: (month: string) => void;
   onExport: () => void;
-  firebaseReady: boolean;
-  firebaseUser: FirebaseUser | null;
-  authLoading: boolean;
-  syncStatus: string;
-  syncError: string | null;
+  user: User;
+  onSignOut: () => void;
 }) {
   const clock = useIsraelClock();
   const selectedYear = Number(selectedMonth.slice(0, 4));
@@ -967,13 +668,7 @@ function Header({
       </div>
 
       <div className="header-actions">
-        <GoogleAuthButton
-          firebaseReady={firebaseReady}
-          user={firebaseUser}
-          authLoading={authLoading}
-          syncStatus={syncStatus}
-          syncError={syncError}
-        />
+        <CloudAccountButton user={user} onSignOut={onSignOut} />
 
         <div className="clock-chip" title="Asia/Jerusalem">
           <Timer size={17} aria-hidden="true" />
@@ -1397,55 +1092,19 @@ function sortEntries(entries: TimeEntry[]): TimeEntry[] {
   );
 }
 
-function mergeEntriesById(
-  cloudEntries: TimeEntry[],
-  localEntries: TimeEntry[],
-): TimeEntry[] {
-  const entriesById = new Map<string, TimeEntry>();
-
-  cloudEntries.forEach((entry) => entriesById.set(entry.id, entry));
-  localEntries.forEach((entry) => {
-    if (!entriesById.has(entry.id)) {
-      entriesById.set(entry.id, entry);
-    }
-  });
-
-  return sortEntries([...entriesById.values()]);
-}
-
-function SyncBanner({
-  status,
-  error,
-}: {
-  status: string;
-  error: string | null;
-}) {
-  if (!error && status === "Cloud sync is active.") {
-    return null;
-  }
-
-  return (
-    <div className={`sync-banner ${error ? "is-error" : ""}`}>
-      {error ? `Cloud sync error: ${error}` : status}
-    </div>
-  );
-}
-
 function App() {
   const { themeMode, setThemeMode } = useThemeMode();
   const activeWorkDate = useActiveWorkDate();
   const currentIsraelDate = getIsraelDate(new Date());
   const activeMonth = getMonthFromDate(activeWorkDate);
-  const [firebaseUser, setFirebaseUser] = React.useState<FirebaseUser | null>(null);
-  const [authLoading, setAuthLoading] = React.useState(isFirebaseConfigured);
-  const [syncStatus, setSyncStatus] = React.useState("Local only");
-  const [syncError, setSyncError] = React.useState<string | null>(null);
+  const [user, setUser] = React.useState<User | null>(null);
+  const [authLoading, setAuthLoading] = React.useState(isSupabaseConfigured);
+  const [dataLoading, setDataLoading] = React.useState(false);
+  const [appError, setAppError] = React.useState<string | null>(null);
   const [settings, setSettings] = React.useState<UserSettings>(() =>
-    normalizeSettings(loadSettings()),
+    normalizeSettings(defaultSettings),
   );
-  const [entries, setEntries] = React.useState<TimeEntry[]>(() =>
-    loadTimeEntries(),
-  );
+  const [entries, setEntries] = React.useState<TimeEntry[]>([]);
   const [selectedMonth, setSelectedMonth] = React.useState(() =>
     getMonthFromDate(getActiveWorkDate()),
   );
@@ -1473,8 +1132,6 @@ function App() {
           100,
         );
 
-  React.useEffect(() => saveSettings(settings), [settings]);
-  React.useEffect(() => saveTimeEntries(entries), [entries]);
   React.useEffect(() => {
     if (selectedMonth > activeMonth) {
       setSelectedMonth(activeMonth);
@@ -1482,143 +1139,114 @@ function App() {
   }, [activeMonth, selectedMonth]);
 
   React.useEffect(() => {
-    if (!isFirebaseConfigured) {
+    if (!isSupabaseConfigured) {
       setAuthLoading(false);
       return;
     }
 
-    return listenToAuthState((user) => {
-      setFirebaseUser(user);
-      setAuthLoading(false);
-      setSyncStatus(user ? "Connected to Firebase." : "Local only.");
-      setSyncError(null);
+    getCurrentSession()
+      .then((session) => setUser(session?.user ?? null))
+      .catch(handleCloudError)
+      .finally(() => setAuthLoading(false));
+
+    return subscribeToAuthState((session) => {
+      setUser(session?.user ?? null);
+      if (!session?.user) {
+        setSettings(normalizeSettings(defaultSettings));
+        setEntries([]);
+      }
     });
   }, []);
 
   React.useEffect(() => {
-    if (!firebaseUser) {
+    if (!user) {
       return;
     }
 
-    setSyncStatus("Syncing cloud data...");
-    let receivedFirstEntriesSnapshot = false;
-    const localEntriesAtLogin = loadTimeEntries();
+    let isCurrent = true;
+    setDataLoading(true);
+    setAppError(null);
 
-    if (localEntriesAtLogin.length > 0) {
-      setSyncStatus("Uploading local records to cloud...");
-      uploadLocalDataToCloud(
-        firebaseUser.uid,
-        normalizeSettings(loadSettings()),
-        localEntriesAtLogin,
-      )
-        .then(() => setSyncStatus("Cloud sync is active."))
-        .catch(handleCloudError);
-    }
-
-    const unsubscribeSettings = subscribeToCloudSettings(
-      firebaseUser.uid,
-      (cloudSettings) => {
-        if (cloudSettings) {
-          const normalizedSettings = normalizeSettings(cloudSettings);
-          setSettings(normalizedSettings);
-          saveSettings(normalizedSettings);
-        }
-        setSyncStatus("Cloud sync is active.");
-      },
-      (error) => {
-        setSyncError(error.message);
-        setSyncStatus("Cloud sync failed.");
-      },
-    );
-
-    const unsubscribeEntries = subscribeToCloudEntries(
-      firebaseUser.uid,
-      (cloudEntries) => {
-        if (!receivedFirstEntriesSnapshot) {
-          receivedFirstEntriesSnapshot = true;
-          const localEntries = loadTimeEntries();
-          const mergedEntries = mergeEntriesById(cloudEntries, localEntries);
-          const cloudEntryIds = new Set(cloudEntries.map((entry) => entry.id));
-          const localOnlyEntries = mergedEntries.filter(
-            (entry) => !cloudEntryIds.has(entry.id),
-          );
-
-          if (localOnlyEntries.length > 0) {
-            setEntries(mergedEntries);
-            saveTimeEntries(mergedEntries);
-            setSyncStatus("Uploading local records to cloud...");
-            Promise.all(
-              localOnlyEntries.map((entry) =>
-                saveCloudEntry(firebaseUser.uid, entry),
-              ),
-            )
-              .then(() => setSyncStatus("Cloud sync is active."))
-              .catch(handleCloudError);
-            return;
-          }
+    Promise.all([loadCloudSettings(user), loadCloudEntries(user)])
+      .then(([cloudSettings, cloudEntries]) => {
+        if (!isCurrent) {
+          return;
         }
 
-        setEntries(cloudEntries);
-        saveTimeEntries(cloudEntries);
-        setSyncStatus("Cloud sync is active.");
-      },
-      (error) => {
-        setSyncError(error.message);
-        setSyncStatus("Cloud sync failed.");
-      },
-    );
+        const normalizedSettings = normalizeSettings(cloudSettings ?? defaultSettings);
+        setSettings(normalizedSettings);
+        setEntries(sortEntries(cloudEntries));
+
+        if (!cloudSettings) {
+          return saveCloudSettings(user, normalizedSettings);
+        }
+      })
+      .catch(handleCloudError)
+      .finally(() => {
+        if (isCurrent) {
+          setDataLoading(false);
+        }
+      });
 
     return () => {
-      unsubscribeSettings();
-      unsubscribeEntries();
+      isCurrent = false;
     };
-  }, [firebaseUser]);
+  }, [user]);
 
   function handleCloudError(error: unknown) {
-    setSyncError(error instanceof Error ? error.message : "Cloud sync failed.");
-    setSyncStatus("Saved locally. Cloud sync failed.");
+    setAppError(error instanceof Error ? error.message : "Cloud operation failed.");
   }
 
-  function updateSettings(settingsUpdate: UserSettings) {
+  async function handleSignOut() {
+    try {
+      await signOutFromSupabase();
+    } catch (error) {
+      handleCloudError(error);
+    }
+  }
+
+  async function updateSettings(settingsUpdate: UserSettings) {
+    if (!user) {
+      return;
+    }
+
     const normalizedSettings = normalizeSettings(settingsUpdate);
-    setSettings(normalizedSettings);
 
-    if (firebaseUser) {
-      setSyncStatus("Saving settings to cloud...");
-      saveCloudSettings(firebaseUser.uid, normalizedSettings)
-        .then(() => setSyncStatus("Cloud sync is active."))
-        .catch(handleCloudError);
+    try {
+      await saveCloudSettings(user, normalizedSettings);
+      setSettings(normalizedSettings);
+      setAppError(null);
+    } catch (error) {
+      handleCloudError(error);
     }
   }
 
-  function addEntry(entry: TimeEntry) {
-    setEntries((current) => {
-      const nextEntries = sortEntries([entry, ...current]);
-      saveTimeEntries(nextEntries);
-      return nextEntries;
-    });
-    setSelectedMonth(getMonthFromDate(entry.date));
+  async function addEntry(entry: TimeEntry) {
+    if (!user) {
+      return;
+    }
 
-    if (firebaseUser) {
-      setSyncStatus("Saving entry to cloud...");
-      saveCloudEntry(firebaseUser.uid, entry)
-        .then(() => setSyncStatus("Cloud sync is active."))
-        .catch(handleCloudError);
+    try {
+      await saveCloudEntry(user, entry);
+      setEntries((current) => sortEntries([entry, ...current]));
+      setSelectedMonth(getMonthFromDate(entry.date));
+      setAppError(null);
+    } catch (error) {
+      handleCloudError(error);
     }
   }
 
-  function deleteEntry(id: string) {
-    setEntries((current) => {
-      const nextEntries = current.filter((entry) => entry.id !== id);
-      saveTimeEntries(nextEntries);
-      return nextEntries;
-    });
+  async function deleteEntry(id: string) {
+    if (!user) {
+      return;
+    }
 
-    if (firebaseUser) {
-      setSyncStatus("Deleting entry from cloud...");
-      deleteCloudEntry(firebaseUser.uid, id)
-        .then(() => setSyncStatus("Cloud sync is active."))
-        .catch(handleCloudError);
+    try {
+      await deleteCloudEntry(user, id);
+      setEntries((current) => current.filter((entry) => entry.id !== id));
+      setAppError(null);
+    } catch (error) {
+      handleCloudError(error);
     }
   }
 
@@ -1644,14 +1272,8 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
-  if (authLoading || !firebaseUser) {
-    return (
-      <EnglishLoginPage
-        firebaseReady={isFirebaseConfigured}
-        authLoading={authLoading}
-        syncError={syncError}
-      />
-    );
+  if (authLoading || !user) {
+    return <EnglishLoginPage />;
   }
 
   return (
@@ -1664,13 +1286,15 @@ function App() {
           maxMonth={activeMonth}
           onMonthChange={setSelectedMonth}
           onExport={exportCsv}
-          firebaseReady={isFirebaseConfigured}
-          firebaseUser={firebaseUser}
-          authLoading={authLoading}
-          syncStatus={syncStatus}
-          syncError={syncError}
+          user={user}
+          onSignOut={handleSignOut}
         />
-        <SyncBanner status={syncStatus} error={syncError} />
+
+        {dataLoading || appError ? (
+          <div className={`sync-banner ${appError ? "is-error" : ""}`}>
+            {appError ?? "Loading cloud data..."}
+          </div>
+        ) : null}
 
         <section className="kpi-strip">
           <BalanceHero
