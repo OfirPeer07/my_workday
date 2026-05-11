@@ -53,8 +53,15 @@ export function subscribeToAuthState(onChange: (session: Session | null) => void
 }
 
 export async function sendEmailSignInLink(email: string): Promise<void> {
+  const redirectTo = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? window.location.origin + '/my_workday/'
+    : 'https://ofirpeer07.github.io/my_workday/';
+
   const { error } = await requireSupabase().auth.signInWithOtp({
     email,
+    options: {
+      emailRedirectTo: redirectTo,
+    },
   });
 
   if (error) {
