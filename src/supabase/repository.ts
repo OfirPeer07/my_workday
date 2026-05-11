@@ -57,7 +57,7 @@ export async function sendEmailSignInLink(email: string): Promise<void> {
   
   const redirectTo = isLocal
     ? window.location.origin + '/my_workday/'
-    : 'https://ofirpeer07.github.io/my_workday';
+    : 'https://ofirpeer07.github.io/my_workday/';
 
   console.log('[Supabase Auth] Attempting sign-in with redirect to:', redirectTo);
 
