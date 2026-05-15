@@ -54,7 +54,7 @@ export function subscribeToAuthState(onChange: (session: Session | null) => void
 
 export async function sendEmailSignInLink(email: string): Promise<void> {
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  
+
   const redirectTo = isLocal
     ? window.location.origin + '/my_workday/'
     : 'https://ofirpeer07.github.io/my_workday/';

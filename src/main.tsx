@@ -213,13 +213,13 @@ function useIsraelClock() {
 type WeatherState =
   | { status: "loading" }
   | {
-      status: "ready";
-      temperature: number;
-      humidity: number;
-      windSpeed: number;
-      description: string;
-      locationName?: string;
-    }
+    status: "ready";
+    temperature: number;
+    humidity: number;
+    windSpeed: number;
+    description: string;
+    locationName?: string;
+  }
   | { status: "unsupported" | "denied" | "error"; message: string };
 
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY?.trim() ?? "";
@@ -511,6 +511,192 @@ function CloudAccountButton({
   );
 }
 
+function LiquidGlassSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  options: Array<{ value: string | number; label: string; disabled?: boolean }>;
+  onChange: (val: any) => void;
+  disabled?: boolean;
+  icon?: React.ElementType;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div className={`glass-select-root ${isOpen ? "is-open" : ""}`} ref={containerRef}>
+      <button
+        type="button"
+        className="glass-select-trigger"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        aria-label={label}
+        aria-expanded={isOpen}
+      >
+        {Icon && <Icon size={16} aria-hidden="true" />}
+        <span>{selectedOption?.label ?? value}</span>
+        <svg
+          className="glass-select-chevron"
+          width="10"
+          height="6"
+          viewBox="0 0 10 6"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M1 1L5 5L9 1"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="glass-select-menu">
+          {options.map((opt) => (
+            <button
+              key={String(opt.value)}
+              type="button"
+              className={`glass-select-item ${opt.value === value ? "is-selected" : ""}`}
+              disabled={opt.disabled}
+              onClick={() => {
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiquidGlassTimePicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [hours, minutes] = value.split(":");
+  const [inputValue, setInputValue] = React.useState(value);
+
+  React.useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    
+    // Basic validation for HH:mm
+    if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(val)) {
+      onChange(val);
+    }
+  };
+
+  const hourOptions = Array.from({ length: 24 }, (_, i) =>
+    String(i).padStart(2, "0"),
+  );
+  const minuteOptions = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+  return (
+    <div
+      className={`glass-time-root ${isOpen ? "is-open" : ""}`}
+      ref={containerRef}
+    >
+      <div className="table-time-input-wrapper">
+        <input
+          type="text"
+          className="table-time-input"
+          value={inputValue}
+          onChange={handleInputChange}
+          onFocus={() => setIsOpen(true)}
+          disabled={disabled}
+          placeholder="HH:mm"
+          aria-label="בחר או הקלד שעה"
+        />
+        <Timer size={16} aria-hidden="true" className="time-icon" onClick={() => setIsOpen(!isOpen)} />
+      </div>
+
+      {isOpen && (
+        <div className="glass-time-dropdown">
+          <div className="time-picker-header">בחר שעה</div>
+          <div className="time-picker-columns">
+            <div className="time-column">
+              <div className="column-label">שעות</div>
+              {hourOptions.map((h) => (
+                <button
+                  key={h}
+                  className={`time-item ${h === hours ? "active" : ""}`}
+                  onClick={() => {
+                    onChange(`${h}:${minutes}`);
+                  }}
+                >
+                  {h}
+                </button>
+              ))}
+            </div>
+            <div className="time-column">
+              <div className="column-label">דקות</div>
+              {minuteOptions.map((m) => (
+                <button
+                  key={m}
+                  className={`time-item ${m === minutes ? "active" : ""}`}
+                  onClick={() => {
+                    onChange(`${hours}:${m}`);
+                    setIsOpen(false);
+                  }}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EnglishLoginPage() {
   const clock = useIsraelClock();
   const weather = useCurrentWeather();
@@ -572,12 +758,12 @@ function EnglishLoginPage() {
             <span>Weather · Current Location</span>
             {weather.status === "ready" ? (
               <>
-              <strong>{Math.round(weather.temperature)}°</strong>
-              <small>
-                {weather.locationName ? `${weather.locationName} · ` : ""}
-                {weather.description} · Humidity {Math.round(weather.humidity)}% · Wind{" "}
-                {Math.round(weather.windSpeed)} km/h
-              </small>
+                <strong>{Math.round(weather.temperature)}°</strong>
+                <small>
+                  {weather.locationName ? `${weather.locationName} · ` : ""}
+                  {weather.description} · Humidity {Math.round(weather.humidity)}% · Wind{" "}
+                  {Math.round(weather.windSpeed)} km/h
+                </small>
               </>
             ) : (
               <>
@@ -625,6 +811,25 @@ function EnglishLoginPage() {
   );
 }
 
+function NavTabs({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) {
+  return (
+    <div className="nav-tabs">
+      <button 
+        className={`nav-tab ${activeTab === 'ledger' ? 'active' : ''}`}
+        onClick={() => onTabChange('ledger')}
+      >
+        טבלת שעות
+      </button>
+      <button 
+        className={`nav-tab ${activeTab === 'summary' ? 'active' : ''}`}
+        onClick={() => onTabChange('summary')}
+      >
+        סיכום חודשי
+      </button>
+    </div>
+  );
+}
+
 function Header({
   themeMode,
   onThemeChange,
@@ -634,15 +839,19 @@ function Header({
   onExport,
   user,
   onSignOut,
+  onToggleSettings,
+  onToggleHistory,
 }: {
   themeMode: ThemeMode;
-  onThemeChange: (themeMode: ThemeMode) => void;
+  onThemeChange: (mode: ThemeMode) => void;
   selectedMonth: string;
   maxMonth: string;
   onMonthChange: (month: string) => void;
   onExport: () => void;
   user: User;
   onSignOut: () => void;
+  onToggleSettings: () => void;
+  onToggleHistory: () => void;
 }) {
   const clock = useIsraelClock();
   const selectedYear = Number(selectedMonth.slice(0, 4));
@@ -668,6 +877,18 @@ function Header({
       </div>
 
       <div className="header-actions">
+        <button type="button" className="glass-shortcut" onClick={onToggleSettings} title="תקן עבודה">
+          <Settings2 size={18} />
+          <span>תקן</span>
+        </button>
+
+        <button type="button" className="glass-shortcut" onClick={onToggleHistory} title="רשומות אחרונות">
+          <Timer size={18} />
+          <span>היסטוריה</span>
+        </button>
+
+        <div className="h-divider" />
+
         <CloudAccountButton user={user} onSignOut={onSignOut} />
 
         <div className="clock-chip" title="Asia/Jerusalem">
@@ -680,43 +901,37 @@ function Header({
 
         <ThemeToggle themeMode={themeMode} onChange={onThemeChange} />
 
-        <label className="date-chip">
-          <CalendarDays size={17} aria-hidden="true" />
-          <select
-            aria-label="בחירת חודש"
+        <div className="date-chip">
+          <LiquidGlassSelect
+            label="בחירת חודש"
+            icon={CalendarDays}
             value={selectedMonthNumber}
-            onChange={(event) => changeMonth(Number(event.target.value))}
-          >
-            {monthLabels.map((label, index) => {
+            onChange={changeMonth}
+            options={monthLabels.map((label, index) => {
               const monthNumber = index + 1;
               const optionMonth = buildMonth(selectedYear, monthNumber);
-              return (
-                <option
-                  key={label}
-                  value={monthNumber}
-                  disabled={optionMonth > maxMonth}
-                >
-                  {label}
-                </option>
-              );
+              return {
+                label,
+                value: monthNumber,
+                disabled: optionMonth > maxMonth,
+              };
             })}
-          </select>
-          <select
-            aria-label="בחירת שנה"
+          />
+          <div className="v-divider" style={{ height: "16px", width: "1px", background: "rgba(255,255,255,0.1)", margin: "0 4px" }} />
+          <LiquidGlassSelect
+            label="בחירת שנה"
             value={selectedYear}
-            onChange={(event) => changeYear(Number(event.target.value))}
-          >
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={changeYear}
+            options={yearOptions.map((year) => ({
+              label: String(year),
+              value: year,
+            }))}
+          />
+        </div>
 
         <button type="button" className="primary-action" onClick={onExport}>
           <Download size={17} aria-hidden="true" />
-          CSV
+          <span>ייצוא CSV</span>
         </button>
       </div>
     </header>
@@ -834,16 +1049,12 @@ function MonthLedgerTable({
     setDrafts({});
   }
 
+  const [activeTab, setActiveTab] = React.useState('ledger');
+
   return (
     <section className="ledger-panel">
-      <div className="section-title">
-        <div>
-          <span>Monthly Ledger</span>
-          <h2>טבלת חודש</h2>
-        </div>
-        <strong>
-          {getMonthLabel(selectedMonth)} · עד {formatDisplayDate(visibleMonthEnd)}
-        </strong>
+      <div className="panel-heading">
+        <NavTabs activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
       <div className="ledger-toolbar">
         <span>
@@ -861,116 +1072,116 @@ function MonthLedgerTable({
         </button>
       </div>
 
-      <div className="table-wrap">
-        <table className="ledger-table">
-          <thead>
-            <tr>
-              <th>Day / Date</th>
-              <th>Records</th>
-              <th>Standard</th>
-              <th>Actual</th>
-              <th>Balance</th>
-              <th>Status</th>
-              <th>Start</th>
-              <th>End</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dates.map((date) => {
-              const summary = calculateDaySummary(date, entries, settings);
-              const weekday = getWeekdayFromDate(date);
-              const dayEntries = entries
-                .filter((entry) => entry.date === date)
-                .sort((a, b) => a.startTime.localeCompare(b.startTime));
-              const isBlankDay =
-                !settings.workDays.includes(weekday) && dayEntries.length === 0;
-              const draft = drafts[date] ?? { startTime: "09:00", endTime: "18:00" };
+      {activeTab === 'ledger' ? (
+        <div className="table-wrap">
+          <table className="ledger-table">
+            <thead>
+              <tr>
+                <th>Day / Date</th>
+                <th>Records</th>
+                <th>Standard</th>
+                <th>Actual</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th>Start</th>
+                <th>End</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dates.map((date) => {
+                const summary = calculateDaySummary(date, entries, settings);
+                const weekday = getWeekdayFromDate(date);
+                const dayEntries = entries
+                  .filter((entry) => entry.date === date)
+                  .sort((a, b) => a.startTime.localeCompare(b.startTime));
+                const isBlankDay =
+                  !settings.workDays.includes(weekday) && dayEntries.length === 0;
+                const draft = drafts[date] ?? { startTime: "09:00", endTime: "18:00" };
 
-              if (isBlankDay) {
+                if (isBlankDay) {
+                  return (
+                    <tr key={date} className="is-blank-day is-compact-blank">
+                      <td data-label="Day / Date" className="day-date-cell">
+                        <strong>{weekdayLabels[weekday]}</strong>
+                        <small>{formatDisplayDate(date)}</small>
+                      </td>
+                      <td data-label="Records" colSpan={7}>
+                        <span className="blank-chip">Blank</span>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
-                  <tr key={date} className="is-blank-day is-compact-blank">
+                  <tr key={date} className={date === activeDate ? "is-today" : ""}>
                     <td data-label="Day / Date" className="day-date-cell">
                       <strong>{weekdayLabels[weekday]}</strong>
                       <small>{formatDisplayDate(date)}</small>
                     </td>
-                    <td data-label="Records" colSpan={7}>
-                      <span className="blank-chip">Blank</span>
+                    <td data-label="Records">
+                      {dayEntries.length > 0 ? (
+                        <div className="entry-stack">
+                          {dayEntries.map((entry) => (
+                            <span className="entry-chip" key={entry.id}>
+                              <span>
+                                {entry.startTime}-{entry.endTime}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteEntry(entry.id)}
+                                aria-label="מחיקת רשומה"
+                                title="מחיקת רשומה"
+                              >
+                                <Trash2 size={13} aria-hidden="true" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="muted">אין</span>
+                      )}
+                    </td>
+                    <td data-label="Standard">{summary.requiredHours}</td>
+                    <td data-label="Actual">{formatDuration(summary.actualHours)}</td>
+                    <td data-label="Balance" className={toneForStatus(summary.status)}>
+                      {formatTimeBalance(summary.balanceHours)}
+                    </td>
+                    <td data-label="Status">
+                      <span className={`status-pill ${toneForStatus(summary.status)}`}>
+                        {summary.status === "extra"
+                          ? "Plus"
+                          : summary.status === "missing"
+                            ? "Minus"
+                            : "Balanced"}
+                      </span>
+                    </td>
+                    <td data-label="Start">
+                      <LiquidGlassTimePicker
+                        value={draft.startTime}
+                        onChange={(val) => updateDraft(date, "startTime", val)}
+                      />
+                    </td>
+                    <td data-label="End">
+                      <LiquidGlassTimePicker
+                        value={draft.endTime}
+                        onChange={(val) => updateDraft(date, "endTime", val)}
+                      />
                     </td>
                   </tr>
                 );
-              }
-
-              return (
-                <tr key={date} className={date === activeDate ? "is-today" : ""}>
-                  <td data-label="Day / Date" className="day-date-cell">
-                    <strong>{weekdayLabels[weekday]}</strong>
-                    <small>{formatDisplayDate(date)}</small>
-                  </td>
-                  <td data-label="Records">
-                    {dayEntries.length > 0 ? (
-                      <div className="entry-stack">
-                        {dayEntries.map((entry) => (
-                          <span className="entry-chip" key={entry.id}>
-                            <span>
-                              {entry.startTime}-{entry.endTime}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteEntry(entry.id)}
-                              aria-label="מחיקת רשומה"
-                              title="מחיקת רשומה"
-                            >
-                              <Trash2 size={13} aria-hidden="true" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="muted">אין</span>
-                    )}
-                  </td>
-                  <td data-label="Standard">{summary.requiredHours}</td>
-                  <td data-label="Actual">{formatDuration(summary.actualHours)}</td>
-                  <td data-label="Balance" className={toneForStatus(summary.status)}>
-                    {formatTimeBalance(summary.balanceHours)}
-                  </td>
-                  <td data-label="Status">
-                    <span className={`status-pill ${toneForStatus(summary.status)}`}>
-                      {summary.status === "extra"
-                        ? "Plus"
-                        : summary.status === "missing"
-                          ? "Minus"
-                          : "Balanced"}
-                    </span>
-                  </td>
-                  <td data-label="Start">
-                    <input
-                      className="table-time-input"
-                      aria-label="שעת כניסה"
-                      type="time"
-                      value={draft.startTime}
-                      onChange={(event) =>
-                        updateDraft(date, "startTime", event.target.value)
-                      }
-                    />
-                  </td>
-                  <td data-label="End">
-                    <input
-                      className="table-time-input"
-                      aria-label="שעת יציאה"
-                      type="time"
-                      value={draft.endTime}
-                      onChange={(event) =>
-                        updateDraft(date, "endTime", event.target.value)
-                      }
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="summary-placeholder">
+          <div className="empty-state">
+            <Timer size={48} />
+            <h3>סיכום חודשי מורחב</h3>
+            <p>כאן יוצגו גרפים וסטטיסטיקות מתקדמות על שעות העבודה שלך.</p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1128,9 +1339,9 @@ function App() {
     monthSummary.requiredHours === 0
       ? 100
       : Math.min(
-          Math.round((monthSummary.actualHours / monthSummary.requiredHours) * 100),
-          100,
-        );
+        Math.round((monthSummary.actualHours / monthSummary.requiredHours) * 100),
+        100,
+      );
 
   React.useEffect(() => {
     if (selectedMonth > activeMonth) {
@@ -1272,12 +1483,25 @@ function App() {
     URL.revokeObjectURL(url);
   }
 
+  const [showSettings, setShowSettings] = React.useState(false);
+  const [showHistory, setShowHistory] = React.useState(false);
+
   if (authLoading || !user) {
     return <EnglishLoginPage />;
   }
 
   return (
     <main className="app-shell">
+      {/* ── Rich background for Liquid Glass to blur through ── */}
+      <div
+        className="app-shell-bg"
+        style={{ backgroundImage: `url(${crystalBallSmokeUrl})` }}
+        aria-hidden="true"
+      />
+      <div className="app-shell-canvas" aria-hidden="true">
+        <CrystalSmokeCanvas />
+      </div>
+
       <div className="app-frame">
         <Header
           themeMode={themeMode}
@@ -1288,6 +1512,8 @@ function App() {
           onExport={exportCsv}
           user={user}
           onSignOut={handleSignOut}
+          onToggleSettings={() => { setShowSettings(!showSettings); setShowHistory(false); }}
+          onToggleHistory={() => { setShowHistory(!showHistory); setShowSettings(false); }}
         />
 
         {dataLoading || appError ? (
@@ -1319,7 +1545,33 @@ function App() {
           />
         </section>
 
-        <div className="workspace-grid">
+        {/* Liquid Glass SVG distortion filter — required globally */}
+        <svg aria-hidden="true" style={{position:'absolute',width:0,height:0,overflow:'hidden'}}>
+          <defs>
+            <filter id="glass-blur" x="0" y="0" width="100%" height="100%" filterUnits="objectBoundingBox">
+              <feTurbulence type="fractalNoise" baseFrequency="0.003 0.007" numOctaves="1" result="turbulence" />
+              <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="200" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+          </defs>
+        </svg>
+
+        <div className="workspace-content">
+          {showSettings && (
+            <div className="floating-panel-overlay" onClick={() => setShowSettings(false)}>
+              <div className="floating-panel glass-flyout" onClick={e => e.stopPropagation()}>
+                <SettingsPanel settings={settings} onChange={updateSettings} />
+              </div>
+            </div>
+          )}
+          
+          {showHistory && (
+            <div className="floating-panel-overlay" onClick={() => setShowHistory(false)}>
+              <div className="floating-panel glass-flyout" onClick={e => e.stopPropagation()}>
+                <EntryList entries={entries} onDelete={deleteEntry} />
+              </div>
+            </div>
+          )}
+
           <MonthLedgerTable
             entries={entries}
             settings={settings}
@@ -1329,11 +1581,6 @@ function App() {
             onAddEntry={addEntry}
             onDeleteEntry={deleteEntry}
           />
-
-          <aside className="side-stack">
-            <SettingsPanel settings={settings} onChange={updateSettings} />
-            <EntryList entries={entries} onDelete={deleteEntry} />
-          </aside>
         </div>
       </div>
     </main>
